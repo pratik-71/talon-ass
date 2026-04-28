@@ -53,7 +53,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-if (require.main === module) {
+// Start the server only if run directly (local dev)
+if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
     console.log(`Server is running on port ${port}`)
   })
