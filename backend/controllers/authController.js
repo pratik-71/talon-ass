@@ -61,11 +61,26 @@ exports.login = async (req, res) => {
       }
       throw error;
     }
+
+    // ── Fetch Subscription Status ──────────────────────────────
+    // Immediately check their status so the frontend is up-to-date
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('status, plan_id')
+      .eq('user_id', data.user.id)
+      .maybeSingle();
     
     res.status(200).json({ 
       success: true, 
       message: 'Welcome back to Talon!',
-      session: data.session 
+      session: {
+        ...data.session,
+        user: {
+          ...data.session.user,
+          subscription_status: subscription?.status || 'inactive',
+          plan_type: subscription?.plan_id?.includes('yearly') ? 'yearly' : 'monthly'
+        }
+      }
     });
   } catch (error) {
     res.status(401).json({ success: false, error: error.message || 'Login failed. Please check your credentials.' });

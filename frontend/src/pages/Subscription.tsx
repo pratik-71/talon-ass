@@ -114,6 +114,18 @@ const Subscription: React.FC = () => {
         },
         settings: {
           successUrl: window.location.origin + '/subscription/success',
+        },
+        eventCallback: (event) => {
+          if (event.name === 'checkout.completed') {
+            // OPTIMISTIC UPDATE: Update the store immediately
+            useAuthStore.setState({
+              user: {
+                ...user,
+                subscription_status: 'active',
+                plan_type: planId as any
+              }
+            });
+          }
         }
       });
       // Let the overlay load before clearing the button loading state
