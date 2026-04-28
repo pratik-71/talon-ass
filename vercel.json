@@ -1,21 +1,20 @@
 {
   "version": 2,
+  "functions": {
+    "backend/index.js": {
+      "runtime": "vercel-node@latest"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/backend/index.js"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/frontend/dist/$1"
     }
-  ],
-  "redirects": [
-    {
-      "source": "/backend",
-      "destination": "/",
-      "permanent": false
-    }
+
   ],
   "headers": [
     {

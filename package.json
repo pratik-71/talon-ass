@@ -1,0 +1,20 @@
+{
+  "name": "talon-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\"",
+    "build": "npm run build --workspace=frontend",
+    "build:frontend": "npm run build --workspace=frontend",
+
+    "build:backend": "echo 'No build needed for backend'",
+    "start:backend": "npm start --workspace=backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.1"
+  }
+}

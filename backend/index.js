@@ -34,8 +34,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Explicitly handle OPTIONS preflight
-app.options('*', cors())
+// CORS preflight is already handled by the app.use(cors(...)) middleware above.
+// app.options('*', cors())
+
 
 // Root / Health check
 app.get('/', (req, res) => {
