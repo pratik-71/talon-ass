@@ -30,6 +30,26 @@ exports.register = async (req, res) => {
       }
       throw error;
     }
+
+    // ── MANUAL PROFILE SYNC ──────────────────────────────────
+    // Supabase Auth stores user info in a private table.
+    // We must manually insert into our public 'user_profiles' table.
+    if (data.user) {
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: data.user.id, // Link to the Auth User
+          full_name: fullName,
+          charity_id: charityId,
+          donation_percentage: donation || 10
+        });
+
+      if (profileError) {
+        console.error('[Signup] Profile Insert Error:', profileError.message);
+        // We don't throw here to avoid failing the whole signup if just the profile fails, 
+        // but in a real app, you might want to handle this more strictly.
+      }
+    }
     
     res.status(201).json({ 
       success: true, 
