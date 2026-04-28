@@ -113,7 +113,7 @@ const Subscription: React.FC = () => {
           user_id: user.id
         },
         settings: {
-          successUrl: window.location.origin + '/dashboard', // Replace with a success page or dashboard later
+          successUrl: window.location.origin + '/subscription/success',
         }
       });
       // Let the overlay load before clearing the button loading state
