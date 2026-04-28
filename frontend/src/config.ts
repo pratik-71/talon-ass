@@ -5,5 +5,9 @@ export const CONFIG = {
     REGISTER: '/api/auth/register',
     LOGIN: '/api/auth/login',
     CHARITIES: '/api/charities',
+    SCORES: '/api/scores',
+    DASHBOARD: '/api/dashboard',
+    UPLOAD_PROOF: '/api/dashboard/upload-proof',
   },
 };
+

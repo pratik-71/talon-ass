@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuthStore } from '../store/useAuthStore'
 import { 
   Trophy, 
   Target, 
@@ -18,6 +19,7 @@ gsap.registerPlugin(ScrollTrigger)
 
 const Homepage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
+  const { isAuthenticated } = useAuthStore()
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -85,8 +87,8 @@ const Homepage: React.FC = () => {
             </p>
             
             <div className="hero-animate flex flex-col sm:flex-row items-center gap-4 mb-12">
-              <Link to="/signup" className="w-full sm:w-auto px-10 py-5 bg-dark text-white text-sm font-black rounded-xl hover:bg-slate-800 transition-all shadow-2xl shadow-dark/30 flex items-center justify-center gap-3 group">
-                Begin Your Journey
+              <Link to={isAuthenticated ? '/dashboard' : '/signup'} className="w-full sm:w-auto px-10 py-5 bg-dark text-white text-sm font-black rounded-xl hover:bg-slate-800 transition-all shadow-2xl shadow-dark/30 flex items-center justify-center gap-3 group">
+                {isAuthenticated ? 'Go to Dashboard' : 'Begin Your Journey'}
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
               </Link>
               <Link to="/#concept" className="w-full sm:w-auto px-10 py-5 border-2 border-slate-200 text-dark text-sm font-black rounded-xl hover:bg-slate-50 hover:border-dark transition-all text-center">
@@ -275,12 +277,20 @@ const Homepage: React.FC = () => {
             Professional Performance. <br /> <span className="text-secondary">Emotional Impact.</span>
           </h2>
           <div className="reveal flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 relative z-10">
-            <Link to="/signup" className="w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-secondary text-dark text-base sm:text-lg font-black rounded-xl sm:rounded-2xl hover:brightness-110 transition-all shadow-xl shadow-dark/20">
-              Start Your Subscription
-            </Link>
-            <Link to="/login" className="w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-white/10 text-white text-base sm:text-lg font-black rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all border border-white/10">
-              Member Login
-            </Link>
+            {isAuthenticated ? (
+              <Link to="/dashboard" className="w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-secondary text-dark text-base sm:text-lg font-black rounded-xl sm:rounded-2xl hover:brightness-110 transition-all shadow-xl shadow-dark/20">
+                Go to My Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/signup" className="w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-secondary text-dark text-base sm:text-lg font-black rounded-xl sm:rounded-2xl hover:brightness-110 transition-all shadow-xl shadow-dark/20">
+                  Start Your Subscription
+                </Link>
+                <Link to="/login" className="w-full sm:w-auto px-10 sm:px-12 py-5 sm:py-6 bg-white/10 text-white text-base sm:text-lg font-black rounded-xl sm:rounded-2xl hover:bg-white/20 transition-all border border-white/10">
+                  Member Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>

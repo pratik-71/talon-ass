@@ -41,49 +41,73 @@ const paddle = new Paddle(process.env.PADDLE_API_KEY || 'dummy_key', {
  */
 exports.handleWebhook = async (req, res) => {
   try {
-    // In a full production app, you MUST verify the webhook signature here using:
-    // paddle.webhooks.unmarshal(req.body, req.headers['paddle-signature'], process.env.PADDLE_WEBHOOK_SECRET)
-    
     const eventData = req.body;
     
-    console.log(`[Paddle Webhook] Event Received: ${eventData.event_type}`);
+    console.log('--- PADDLE WEBHOOK RECEIVED ---');
+    console.log(`Event Type: ${eventData.event_type}`);
+    console.log(`Event ID: ${eventData.id}`);
+    
+    // In a full production app, you MUST verify the webhook signature here.
+    // paddle.webhooks.unmarshal(req.body, req.headers['paddle-signature'], process.env.PADDLE_WEBHOOK_SECRET)
+    
+    // Process Subscription and Transaction events
+    const isSubscriptionEvent = eventData.event_type && eventData.event_type.startsWith('subscription.');
+    const isTransactionCompleted = eventData.event_type === 'transaction.completed';
 
-    // Handle all Subscription events (created, updated, canceled, paused, etc.)
-    if (eventData.event_type && eventData.event_type.startsWith('subscription.')) {
-      const subscription = eventData.data;
+    if (isSubscriptionEvent || isTransactionCompleted) {
+      const data = eventData.data;
+      console.log(`[Paddle Webhook] Processing data for: ${data.id}`);
       
-      console.log(`[Paddle Webhook] Processing subscription: ${subscription.id} for customer: ${subscription.customer_id}`);
-      
-      // Extract custom_data which should contain the user_id from the frontend
-      const userId = subscription.custom_data?.user_id;
+      // Extract custom_data (could be at data level or root level depending on event version)
+      const customData = data.custom_data || eventData.custom_data || {};
+      const userId = customData.user_id;
+
+      console.log(`[Paddle Webhook] Custom Data Found:`, JSON.stringify(customData));
+      console.log(`[Paddle Webhook] User ID extracted: ${userId}`);
 
       if (userId) {
+        // Prepare subscription data
+        // For transactions, we might not have the subscription ID yet if it's the first one
+        const updateData = {
+          user_id: userId,
+          paddle_customer_id: data.customer_id,
+          status: data.status || 'active',
+          updated_at: new Date().toISOString()
+        };
+
+        if (isSubscriptionEvent) {
+          updateData.paddle_subscription_id = data.id;
+          updateData.plan_id = data.items?.[0]?.price?.id || 'unknown';
+        } else if (isTransactionCompleted) {
+          updateData.paddle_subscription_id = data.subscription_id || null;
+        }
+
+        console.log(`[Paddle Webhook] Upserting to Supabase for User: ${userId}`, updateData);
+
         // Upsert subscription into Supabase
+        // We use user_id as the primary link here if paddle_subscription_id is missing
         const { error } = await supabase
           .from('subscriptions')
-          .upsert({
-            user_id: userId,
-            paddle_subscription_id: subscription.id,
-            paddle_customer_id: subscription.customer_id,
-            status: subscription.status, // e.g., 'active', 'canceled'
-            plan_id: subscription.items[0]?.price?.id || 'unknown',
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'paddle_subscription_id' });
+          .upsert(updateData, { onConflict: 'user_id' });
 
         if (error) {
           console.error('[Paddle Webhook] Supabase Update Error:', error.message);
+          console.error('[Paddle Webhook] Error details:', JSON.stringify(error));
         } else {
-          console.log(`[Paddle Webhook] Successfully updated subscription for user ${userId}`);
+          console.log(`[Paddle Webhook] ✅ Successfully updated subscription for user ${userId}`);
         }
       } else {
-        console.warn(`[Paddle Webhook] No user_id found in custom_data for subscription ${subscription.id}`);
+        console.warn(`[Paddle Webhook] ⚠ No user_id found in custom_data for event ${eventData.id}`);
+        console.log(`[Paddle Webhook] Full data received:`, JSON.stringify(data));
       }
+    } else {
+      console.log(`[Paddle Webhook] Ignoring event type: ${eventData.event_type}`);
     }
     
     // Always return 200 OK so Paddle knows we received it
     res.status(200).send('Webhook processed');
   } catch (error) {
-    console.error('[Paddle Webhook] Processing Error:', error);
+    console.error('[Paddle Webhook] ❌ Processing Error:', error);
     res.status(500).send('Webhook processing failed');
   }
 };

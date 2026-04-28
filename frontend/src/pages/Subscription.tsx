@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Zap, Shield, Crown, ArrowRight, Star } from 'lucide-react';
+import { Check, Zap, Shield, Crown, ArrowRight, Star, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import PageLoader from '../components/common/PageLoader';
 import { initializePaddle, Paddle } from '@paddle/paddle-js';
 
 // Map local plan IDs to Paddle Price IDs provided by the user
@@ -13,7 +12,7 @@ const PADDLE_PRICES = {
 import { useAuthStore } from '../store/useAuthStore';
 
 const Subscription: React.FC = () => {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [paddle, setPaddle] = useState<Paddle | undefined>();
   const [prices, setPrices] = useState({ monthly: '$...', yearly: '$...' });
   const navigate = useNavigate();
@@ -105,7 +104,7 @@ const Subscription: React.FC = () => {
       return;
     }
 
-    setIsProcessing(true);
+    setProcessingPlan(planId);
     
     try {
       paddle.Checkout.open({
@@ -117,17 +116,16 @@ const Subscription: React.FC = () => {
           successUrl: window.location.origin + '/dashboard', // Replace with a success page or dashboard later
         }
       });
-      // The loader will stop once the Paddle iframe opens, but we'll stop it just before
-      setIsProcessing(false);
+      // Let the overlay load before clearing the button loading state
+      setTimeout(() => setProcessingPlan(null), 1500);
     } catch (error) {
       console.error('Paddle Checkout Error:', error);
-      setIsProcessing(false);
+      setProcessingPlan(null);
     }
   };
 
   return (
     <>
-      {isProcessing && <PageLoader message="Initializing Secure Checkout" />}
       <div className="min-h-screen bg-white pt-24 pb-20 px-6 lg:px-16 overflow-hidden relative">
         {/* Cinematic Background */}
         <div className="absolute top-[-10%] right-[-5%] w-[60%] h-[80%] bg-secondary/5 blur-[140px] rounded-full pointer-events-none" />
@@ -187,11 +185,23 @@ const Subscription: React.FC = () => {
                     </p>
                   </div>
                   <button 
+                    disabled={processingPlan !== null}
                     onClick={() => handleSubscribe('yearly')}
-                    className="w-full md:w-auto px-10 py-5 bg-secondary text-dark rounded-2xl font-black shadow-lg shadow-secondary/20 hover:brightness-110 transition-all flex items-center justify-center gap-3 group whitespace-nowrap relative z-10"
+                    className={`w-full md:w-auto px-10 py-5 bg-secondary text-dark rounded-2xl font-black shadow-lg shadow-secondary/20 transition-all flex items-center justify-center gap-3 group whitespace-nowrap relative z-10 ${
+                      processingPlan !== null ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110'
+                    }`}
                   >
-                    Upgrade Now
-                    <Crown className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+                    {processingPlan === 'yearly' ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        Upgrade Now
+                        <Crown className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -250,15 +260,25 @@ const Subscription: React.FC = () => {
                   </div>
 
                   <button 
+                    disabled={processingPlan !== null}
                     onClick={() => handleSubscribe(plan.id as 'monthly' | 'yearly')}
                     className={`w-full py-5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 group shadow-xl relative z-10 ${
                       plan.recommended 
-                        ? 'bg-secondary text-dark hover:brightness-110 shadow-secondary/10' 
-                        : 'bg-dark text-white hover:bg-slate-800 shadow-dark/10'
-                    }`}
+                        ? 'bg-secondary text-dark shadow-secondary/10' 
+                        : 'bg-dark text-white shadow-dark/10'
+                    } ${processingPlan !== null ? 'opacity-70 cursor-not-allowed' : (plan.recommended ? 'hover:brightness-110' : 'hover:bg-slate-800')}`}
                   >
-                    {plan.id === 'monthly' ? 'Pay Monthly' : 'Pay Yearly'}
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
+                    {processingPlan === plan.id ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        {plan.id === 'monthly' ? 'Pay Monthly' : 'Pay Yearly'}
+                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
+                      </>
+                    )}
                   </button>
                 </div>
               ))}

@@ -51,8 +51,8 @@ const Login: React.FC = () => {
         const { session } = response.data;
         setAuth(session.user, session.access_token);
         
-        // Redirect to home after short delay
-        setTimeout(() => navigate('/'), 1500);
+        // Redirect to dashboard
+        setTimeout(() => navigate('/dashboard'), 1500);
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Login failed. Please try again later.';

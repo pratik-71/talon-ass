@@ -12,6 +12,7 @@ import Subscription from './pages/Subscription'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Refund from './pages/Refund'
+import Dashboard from './pages/Dashboard'
 import PageLoader from './components/common/PageLoader'
 
 import { useThemeStore } from './store/useThemeStore'
@@ -91,6 +92,7 @@ function App() {
           <Route path="/terms-and-conditions" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/refund" element={<Refund />} />
+          <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
       <Footer />

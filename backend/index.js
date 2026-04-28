@@ -13,10 +13,14 @@ const authRoutes = require('./routes/authRoutes')
 const charityRoutes = require('./routes/charityRoutes')
 const subscriptionRoutes = require('./routes/subscriptionRoutes')
 const subscriptionController = require('./controllers/subscriptionController')
+const scoreRoutes = require('./routes/scoreRoutes')
+const dashboardRoutes = require('./routes/dashboardRoutes')
 
 app.use('/api/auth', authRoutes)
 app.use('/api/charities', charityRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
+app.use('/api/scores', scoreRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 app.post('/api/webhook/paddle', subscriptionController.handleWebhook)
 
 app.listen(port, () => {
