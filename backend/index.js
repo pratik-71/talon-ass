@@ -23,6 +23,10 @@ app.use('/api/scores', scoreRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.post('/api/webhook/paddle', subscriptionController.handleWebhook)
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`)
-})
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`)
+  })
+}
+
+module.exports = app;
