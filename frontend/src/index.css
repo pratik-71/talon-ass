@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #FFFFFF;
+  --color-secondary: #1cd962; /* Lighter Green */
+  --color-secondary-dark: #16A34A;
+  --color-dark: #0F172A; /* Slate 900 */
+  --color-accent: #4ADE80; /* Lighter Emerald */
+  --color-slate-900: #0F172A;
+  --color-slate-800: #1E293B;
+  --color-slate-700: #334155;
+  --color-slate-600: #475569;
+  --color-slate-500: #64748B;
+  --color-slate-50: #F8FAFC;
+  
+  --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
+  
+  --shadow-premium: 0 20px 50px -12px rgba(0, 0, 0, 0.15);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  body {
+    @apply bg-white text-dark font-sans selection:bg-secondary selection:text-dark;
+  }
+}
+
+@layer utilities {
+
+  .bg-glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/20;
+  }
+  .bg-dark-glass {
+    @apply bg-dark/80 backdrop-blur-xl border border-white/10;
+  }
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-dark to-slate-600;
+  }
+  .gradient-green {
+    @apply bg-gradient-to-br from-secondary to-secondary-dark;
+  }
+}
