@@ -6,6 +6,10 @@ const { supabaseAdmin } = require('../config/supabase');
  * Uses the service role key — reliable for server-side validation.
  */
 const requireAuth = async (req, res, next) => {
+  if (!supabaseAdmin) {
+    console.error('[Auth Middleware] Supabase Admin client NOT initialized!');
+    return res.status(500).json({ success: false, error: 'Auth service unavailable.' });
+  }
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

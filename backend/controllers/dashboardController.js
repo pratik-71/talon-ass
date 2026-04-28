@@ -9,6 +9,10 @@ const supabase = require('../config/supabase');
  */
 exports.getDashboardData = async (req, res) => {
   try {
+    if (!supabase) {
+      console.error('[DashboardController] Supabase client NOT initialized!');
+      return res.status(500).json({ success: false, error: 'Database service is currently unavailable. Check environment variables.' });
+    }
     const userId = req.user.id;
 
     // 1. Subscription status
