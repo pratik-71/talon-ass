@@ -9,13 +9,18 @@ if (!supabaseUrl || !supabaseKey) {
   console.error('[Supabase] ⚠ Missing SUPABASE_URL or SUPABASE_ANON_KEY env variables');
 }
 
-// Public client (anon key) — for user-facing auth operations like login/register
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Initialize clients only if URLs are present to avoid crashing the serverless function
+let supabase;
+let supabaseAdmin;
 
-// Admin client (service role key) — for server-side JWT validation, bypasses RLS
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
-});
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey);
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+} else {
+  console.error('[Supabase] CRITICAL: SUPABASE_URL or SUPABASE_ANON_KEY is missing!');
+}
 
 module.exports = supabase;
 module.exports.supabaseAdmin = supabaseAdmin;
