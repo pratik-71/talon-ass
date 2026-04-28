@@ -68,10 +68,16 @@ exports.handleWebhook = async (req, res) => {
       if (userId) {
         // Prepare subscription data
         // For transactions, we might not have the subscription ID yet if it's the first one
+        // Map Paddle status to our internal 'active' status where appropriate
+        let dbStatus = data.status || 'active';
+        if (isTransactionCompleted && (dbStatus === 'completed' || !data.status)) {
+          dbStatus = 'active';
+        }
+
         const updateData = {
           user_id: userId,
           paddle_customer_id: data.customer_id,
-          status: data.status || 'active',
+          status: dbStatus,
           updated_at: new Date().toISOString()
         };
 

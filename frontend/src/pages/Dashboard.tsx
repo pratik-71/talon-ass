@@ -78,14 +78,26 @@ const Dashboard: React.FC = () => {
       const res = await axios.get(api(CONFIG.API_ENDPOINTS.DASHBOARD), { headers });
       const dashData: DashData = res.data.data;
 
+      setData(dashData);
+
+      // ── Sync Auth Store ──────────────────────────────────────
+      // Update global store so the rest of the app knows the status
+      if (user) {
+        useAuthStore.setState({
+          user: {
+            ...user,
+            subscription_status: dashData.subscription?.status as any,
+            plan_type: (dashData.subscription?.plan_id?.includes('yearly') ? 'yearly' : 'monthly') as any
+          }
+        });
+      }
+
       // ── Subscription gate ──────────────────────────────────────
       // Only 'active' subscribers may access the dashboard.
       if (dashData.subscription?.status !== 'active') {
         navigate('/subscription', { replace: true });
         return;
       }
-
-      setData(dashData);
     } catch (err: any) {
       // Session expired — clear auth and send to login
       if (err?.response?.status === 401) {
