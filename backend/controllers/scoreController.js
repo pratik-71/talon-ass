@@ -1,4 +1,4 @@
-const supabase = require('../config/supabase');
+const { supabaseAdmin: supabase } = require('../config/supabase');
 
 const MAX_SCORES = 5;
 const SCORE_MIN = 1;
@@ -97,7 +97,7 @@ exports.addScore = async (req, res) => {
 
     res.status(201).json({ success: true, message: 'Score added successfully.', data: inserted });
   } catch (error) {
-    console.error('[ScoreController] addScore error:', error.message);
+    console.error('[ScoreController] addScore error:', error);
     res.status(500).json({ success: false, error: 'Failed to add score. Please try again.' });
   }
 };
