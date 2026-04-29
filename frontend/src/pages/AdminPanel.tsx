@@ -56,7 +56,7 @@ const AdminPanel: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [authError, setAuthError] = useState(false);
 
-  const { token, logout } = useAuthStore();
+  const { user, token, logout } = useAuthStore();
   const navigate = useNavigate();
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -85,14 +85,21 @@ const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
+    
+    // Auto-authorize if the logged-in user is the admin
+    if (user?.email === 'admin@gmail.com') {
+      setIsAdminAuth(true);
+    }
+
     // Only fetch if verified via the guard
     if (isAdminAuth) {
       fetchData();
     }
-  }, [token, isAdminAuth, fetchData, navigate]);
+  }, [token, user, isAdminAuth, fetchData, navigate]);
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    // Synchronized with the credentials you will provide in the Google Form
     if (adminEmail === 'admin@gmail.com' && adminPassword === 'admin123') {
       setIsAdminAuth(true);
       setAuthError(false);

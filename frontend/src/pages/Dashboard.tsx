@@ -57,6 +57,7 @@ const Dashboard: React.FC = () => {
 
   const [data, setData] = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   // Modal State
@@ -90,6 +91,7 @@ const Dashboard: React.FC = () => {
       if (err?.response?.status === 401) { logout(); navigate('/login'); }
     } finally {
       if (!silent) setLoading(false);
+      setRefreshing(false);
     }
   }, [token, navigate, logout, headers]);
 
@@ -140,6 +142,7 @@ const Dashboard: React.FC = () => {
         await axios.put(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.SCORES}/${activeScoreId}`, { score: num, date: dateVal }, { headers });
       }
       setShowScoreModal(false);
+      setRefreshing(true);
       await fetchDashboard(true);
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.error || 'Action failed.');
@@ -154,6 +157,7 @@ const Dashboard: React.FC = () => {
     try {
       await axios.delete(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.SCORES}/${showDeleteModal}`, { headers });
       setShowDeleteModal(null);
+      setRefreshing(true);
       await fetchDashboard(true);
     } catch {
       alert('Delete failed.');
@@ -172,7 +176,15 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
       
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 sm:pt-32">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 sm:pt-32 relative">
+        
+        {/* Background Sync Indicator */}
+        {refreshing && (
+          <div className="absolute top-28 right-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-full border border-slate-100 shadow-xl animate-in slide-in-from-right-4 duration-300">
+            <Loader2 className="w-3.5 h-3.5 text-secondary animate-spin" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing...</span>
+          </div>
+        )}
         
         {/* Hero Section */}
         <div className="mb-8 sm:mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">

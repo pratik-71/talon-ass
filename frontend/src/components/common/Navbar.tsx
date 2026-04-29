@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Trophy, Menu, X, LayoutDashboard, CreditCard, LogOut, User, ChevronDown, Heart, Zap, Target, MessageSquare } from 'lucide-react'
+import { Trophy, Menu, X, LayoutDashboard, CreditCard, LogOut, User, ChevronDown, Heart, Zap, Target, MessageSquare, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 
 const Navbar: React.FC = () => {
@@ -17,6 +17,10 @@ const Navbar: React.FC = () => {
     { label: 'Messages', href: '/messages', icon: MessageSquare },
     { label: 'Charities', href: '/charities', icon: Heart },
   ]
+
+  if (isAuthenticated && user?.email === 'admin@gmail.com') {
+    memberLinks.push({ label: 'Admin', href: '/admin', icon: ShieldCheck });
+  }
 
   const navLinks = isAuthenticated ? memberLinks : guestLinks;
   const [scrolled, setScrolled] = useState(false)
@@ -165,6 +169,16 @@ const Navbar: React.FC = () => {
                         <LayoutDashboard className="w-4 h-4 text-slate-500 group-hover:text-secondary transition-colors" />
                         My Dashboard
                       </Link>
+                      {user?.email === 'admin@gmail.com' && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all group"
+                        >
+                          <ShieldCheck className="w-4 h-4 text-slate-500 group-hover:text-secondary transition-colors" />
+                          Admin Panel
+                        </Link>
+                      )}
                       <Link
                         to="/subscription"
                         onClick={() => setDropdownOpen(false)}
@@ -296,6 +310,11 @@ const Navbar: React.FC = () => {
                 <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all">
                   <LayoutDashboard className="w-4 h-4 text-slate-500" /> Dashboard
                 </Link>
+                {user?.email === 'admin@gmail.com' && (
+                  <Link to="/admin" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all">
+                    <ShieldCheck className="w-4 h-4 text-slate-500" /> Admin Panel
+                  </Link>
+                )}
                 <Link to="/subscription" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all">
                   <CreditCard className="w-4 h-4 text-slate-500" /> Subscription
                 </Link>
