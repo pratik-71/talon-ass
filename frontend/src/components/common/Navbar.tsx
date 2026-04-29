@@ -1,23 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Trophy, Menu, X, LayoutDashboard, CreditCard, LogOut, User, ChevronDown, Heart, Zap, Target } from 'lucide-react'
+import { Trophy, Menu, X, LayoutDashboard, CreditCard, LogOut, User, ChevronDown, Heart, Zap, Target, MessageSquare } from 'lucide-react'
 import { useAuthStore } from '../../store/useAuthStore'
 
-const NAV_LINKS = [
-  { label: 'How It Works', href: '/#concept' },
-  { label: 'Charities', href: '/#charity', icon: Heart },
-  { label: 'Draws', href: '/#draws', icon: Target },
-  { label: 'Pricing', href: '/subscription', icon: Zap },
-]
-
 const Navbar: React.FC = () => {
+  const { isAuthenticated, user, logout } = useAuthStore()
+  
+  const guestLinks = [
+    { label: 'How It Works', href: '/how-it-works' },
+    { label: 'Charities', href: '/charities', icon: Heart },
+    { label: 'Pricing', href: '/subscription', icon: Zap },
+  ]
+
+  const memberLinks = [
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { label: 'Messages', href: '/messages', icon: MessageSquare },
+    { label: 'Charities', href: '/charities', icon: Heart },
+    ...(user?.role === 'admin' ? [{ label: 'Admin Panel', href: '/admin', icon: Target }] : [])
+  ]
+
+  const navLinks = isAuthenticated ? memberLinks : guestLinks;
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
   const navigate = useNavigate()
-  const { isAuthenticated, user, logout } = useAuthStore()
 
   // Determine if we're on a dark-bg page (dashboard)
   const isDarkPage = location.pathname === '/dashboard'
@@ -77,7 +85,7 @@ const Navbar: React.FC = () => {
 
           {/* ── Desktop Nav ── */}
           <div className="hidden md:flex items-center gap-1">
-            {NAV_LINKS.map(link => (
+            {navLinks.map(link => (
               <Link
                 key={link.label}
                 to={link.href}
@@ -166,13 +174,14 @@ const Navbar: React.FC = () => {
                         <CreditCard className="w-4 h-4 text-slate-500 group-hover:text-secondary transition-colors" />
                         Manage Subscription
                       </Link>
+                      
                       <Link
-                        to="/#charity"
+                        to="/profile"
                         onClick={() => setDropdownOpen(false)}
                         className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all group"
                       >
-                        <Heart className="w-4 h-4 text-slate-500 group-hover:text-secondary transition-colors" />
-                        My Charity
+                        <User className="w-4 h-4 text-slate-500 group-hover:text-secondary transition-colors" />
+                        My Profile & Identity
                       </Link>
                     </div>
 
@@ -271,7 +280,7 @@ const Navbar: React.FC = () => {
 
           {/* Nav links */}
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {NAV_LINKS.map(link => (
+            {navLinks.map(link => (
               <Link
                 key={link.label}
                 to={link.href}
@@ -290,6 +299,9 @@ const Navbar: React.FC = () => {
                 </Link>
                 <Link to="/subscription" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all">
                   <CreditCard className="w-4 h-4 text-slate-500" /> Subscription
+                </Link>
+                <Link to="/profile" onClick={() => setMobileOpen(false)} className="flex items-center gap-3 px-3 py-3 rounded-xl text-slate-300 hover:text-white hover:bg-white/8 text-sm font-semibold transition-all">
+                  <User className="w-4 h-4 text-slate-500" /> My Profile
                 </Link>
               </>
             )}

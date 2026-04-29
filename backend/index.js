@@ -24,7 +24,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
 // 2. Disable Caching for API
 app.use((req, res, next) => {
@@ -58,12 +59,19 @@ const subscriptionRoutes = require('./routes/subscriptionRoutes')
 const subscriptionController = require('./controllers/subscriptionController')
 const scoreRoutes = require('./routes/scoreRoutes')
 const dashboardRoutes = require('./routes/dashboardRoutes')
+const adminRoutes = require('./routes/adminRoutes')
+const winnerRoutes = require('./routes/winnerRoutes')
+const userRoutes = require('./routes/userRoutes')
 
 app.use('/api/auth', authRoutes)
 app.use('/api/charities', charityRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/scores', scoreRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/winners', winnerRoutes)
+app.use('/api/user', userRoutes)
+app.get('/api/subscription/force-update-subscription', require('./middleware/authMiddleware').requireAuth, subscriptionController.forceUpdateSubscription)
 app.post('/api/webhook/paddle', subscriptionController.handleWebhook)
 
 // Global Error Handler

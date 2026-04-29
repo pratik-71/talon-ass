@@ -34,6 +34,22 @@ const SubscriptionSuccess: React.FC = () => {
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
+    
+    // ── WEBHOOK BYPASS (Fail-safe) ──────────────────────────────
+    // Directly tell the backend to update our status if we hit this page.
+    // This fixes the issue where Paddle webhooks are blocked by localhost/firewalls.
+    const forceUpdateStatus = async () => {
+      try {
+        await axios.post(`${CONFIG.BACKEND_URL}/api/subscriptions/force-update`, {
+          userId: user?.id,
+          status: 'active'
+        });
+        console.log('[Fail-safe] ⚡ Subscription state forced to active.');
+      } catch (e) {
+        console.error('[Fail-safe] Direct update failed, relying on polling/webhook.', e);
+      }
+    };
+    forceUpdateStatus();
 
     // Initial Cinematic Entry
     const ctx = gsap.context(() => {

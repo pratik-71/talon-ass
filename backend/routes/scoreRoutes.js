@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const scoreController = require('../controllers/scoreController');
-const requireAuth = require('../middleware/authMiddleware');
+const { requireAuth } = require('../middleware/authMiddleware');
 
 // @route  GET  /api/scores
 router.get('/', requireAuth, scoreController.getScores);

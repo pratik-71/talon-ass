@@ -35,7 +35,8 @@ exports.register = async (req, res) => {
     // Supabase Auth stores user info in a private table.
     // We must manually insert into our public 'user_profiles' table.
     if (data.user) {
-      const { error: profileError } = await supabase
+      const { supabaseAdmin } = require('../config/supabase');
+      const { error: profileError } = await supabaseAdmin
         .from('user_profiles')
         .insert({
           id: data.user.id, // Link to the Auth User
@@ -98,7 +99,8 @@ exports.login = async (req, res) => {
         user: {
           ...data.session.user,
           subscription_status: subscription?.status || 'inactive',
-          plan_type: subscription?.plan_id?.includes('yearly') ? 'yearly' : 'monthly'
+          plan_type: subscription?.plan_id?.includes('yearly') ? 'yearly' : 'monthly',
+          role: data.session.user.user_metadata?.role || 'user'
         }
       }
     });

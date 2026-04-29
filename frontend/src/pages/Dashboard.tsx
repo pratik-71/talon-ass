@@ -1,53 +1,55 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import {
-  Crown, Activity, Heart, Trophy, Upload, LogOut, Plus, Pencil,
-  Trash2, X, Check, Loader2, Calendar, TrendingUp, Star, AlertCircle
+  Activity, Heart, Trophy, LogOut, Loader2, Check, Trash2, Plus, Edit2, X, AlertCircle, TrendingUp, Calendar, Hash
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { CONFIG } from '../config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
 interface Score { id: string; score: number; date: string; }
 interface Charity { name: string; description: string; logo_url?: string; }
-interface DrawEntry { id: string; draw_id: string; prize_tier?: string; created_at: string; }
-interface Winner { id: string; amount: number; prize_tier: string; payment_status: string; proof_url?: string; }
-interface Subscription { status: string; plan_id?: string; current_period_end?: string; }
 interface DashData {
-  subscription: Subscription;
+  subscription: { status: string; };
   scores: Score[];
   charity: Charity | null;
   donation_percentage: number;
   full_name: string;
-  draws: DrawEntry[];
-  winnings: Winner[];
   total_won: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+import ScoreModal from '../components/ScoreModal';
+import DeleteModal from '../components/DeleteModal';
 
-const api = (path: string) => `${CONFIG.BACKEND_URL}${path}`;
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-const badge = (status: string) => {
-  const map: Record<string, string> = { active: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', inactive: 'bg-red-500/20 text-red-400 border-red-500/30', past_due: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
-  return map[status] || map['inactive'];
-};
 
-// ─── Card shell ──────────────────────────────────────────────────────────────
-
-const Card: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, icon, children, className = '' }) => (
-  <div className={`bg-slate-800/60 border border-white/5 rounded-3xl p-6 backdrop-blur-sm ${className}`}>
-    <div className="flex items-center gap-3 mb-5">
-      <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">{icon}</div>
-      <h2 className="font-black text-white text-base tracking-tight">{title}</h2>
+// --- Memoized Components ---
+const ScoreCard = React.memo(({ s, onEdit, onDelete }: { s: Score, onEdit: (s: Score) => void, onDelete: (id: string) => void }) => {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 bg-slate-900 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-800 border-l-4 sm:border-l-8 border-l-secondary shadow-lg hover:bg-black transition-all group gap-4 sm:gap-0">
+      <div className="flex items-center gap-4 sm:gap-8">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-3xl font-black text-secondary shrink-0">
+          {s.score}
+        </div>
+        <div className="min-w-0">
+          <p className="text-base sm:text-lg font-black text-white tracking-tight uppercase leading-none mb-1 sm:mb-2 truncate">{fmtDate(s.date)}</p>
+          <p className="text-[8px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-widest">Verified Round</p>
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end border-t border-white/5 pt-3 sm:pt-0 sm:border-t-0">
+        <button onClick={() => onEdit(s)} className="flex-1 sm:flex-none p-3 sm:p-4 text-slate-600 hover:text-white hover:bg-white/5 rounded-xl sm:rounded-2xl cursor-pointer transition-all flex items-center justify-center gap-2">
+          <Edit2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+          <span className="sm:hidden text-[10px] font-black uppercase">Edit</span>
+        </button>
+        <button onClick={() => onDelete(s.id)} className="flex-1 sm:flex-none p-3 sm:p-4 text-slate-600 hover:text-red-500 hover:bg-white/5 rounded-xl sm:rounded-2xl cursor-pointer transition-all flex items-center justify-center gap-2">
+          <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+          <span className="sm:hidden text-[10px] font-black uppercase">Delete</span>
+        </button>
+      </div>
     </div>
-    {children}
-  </div>
-);
-
-// ─── Dashboard ───────────────────────────────────────────────────────────────
+  );
+});
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -55,363 +57,214 @@ const Dashboard: React.FC = () => {
 
   const [data, setData] = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Score form
+  // Modal State
+  const [showScoreModal, setShowScoreModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [activeScoreId, setActiveScoreId] = useState<string | null>(null);
+
+  // Form State
   const [scoreVal, setScoreVal] = useState('');
   const [dateVal, setDateVal] = useState('');
-  const [scoreErr, setScoreErr] = useState('');
-  const [scoreLoading, setScoreLoading] = useState(false);
-  const [editingScore, setEditingScore] = useState<Score | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Proof upload
-  const [proofWinnerId, setProofWinnerId] = useState('');
-  const [proofUrl, setProofUrl] = useState('');
-  const [proofErr, setProofErr] = useState('');
-  const [proofLoading, setProofLoading] = useState(false);
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-  const headers = { Authorization: `Bearer ${token}` };
-
-  const fetchDashboard = useCallback(async () => {
+  const fetchDashboard = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
-      const res = await axios.get(api(CONFIG.API_ENDPOINTS.DASHBOARD), { headers });
-      const dashData: DashData = res.data.data;
+      if (!silent) setLoading(true);
+      const res = await axios.get(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.DASHBOARD}`, { headers });
+      
+      const isSubscribed = res.data.data.subscription?.status === 'active' || user?.subscription_status === 'active';
 
-      setData(dashData);
-
-      // ── Sync Auth Store ──────────────────────────────────────
-      // Update global store so the rest of the app knows the status
-      if (user) {
-        useAuthStore.setState({
-          user: {
-            ...user,
-            subscription_status: dashData.subscription?.status as any,
-            plan_type: (dashData.subscription?.plan_id?.includes('yearly') ? 'yearly' : 'monthly') as any
-          }
-        });
-      }
-
-      // ── Subscription gate ──────────────────────────────────────
-      // Only 'active' subscribers may access the dashboard.
-      if (dashData.subscription?.status !== 'active') {
-        navigate('/subscription', { replace: true });
-        return;
+      if (!isSubscribed) {
+        try {
+          await axios.get(`${CONFIG.BACKEND_URL}/api/subscription/force-update-subscription`, { headers });
+          const retryRes = await axios.get(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.DASHBOARD}`, { headers });
+          setData(retryRes.data.data);
+          const stillNotSubscribed = retryRes.data.data.subscription?.status !== 'active' && user?.subscription_status !== 'active';
+          if (stillNotSubscribed) { navigate('/subscription', { replace: true }); return; }
+        } catch { navigate('/subscription', { replace: true }); return; }
+      } else {
+        setData(res.data.data);
       }
     } catch (err: any) {
-      // Session expired — clear auth and send to login
-      if (err?.response?.status === 401) {
-        logout();
-        navigate('/login');
-        return;
-      }
-      setError('Failed to load dashboard. Please refresh.');
+      if (err?.response?.status === 401) { logout(); navigate('/login'); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [token]);
+  }, [token, navigate, logout, headers]);
 
   useEffect(() => {
-    if (!user || !token) { navigate('/login'); return; }
+    if (!token) { navigate('/login'); return; }
     fetchDashboard();
-  }, [user, token]);
+  }, [token, fetchDashboard]);
 
-  const handleLogout = () => { logout(); navigate('/'); };
+  // ─── Actions ───────────────────────────────────────────────────────────────
+  
+  const openAddModal = useCallback(() => {
+    setModalMode('add');
+    setScoreVal('');
+    const now = new Date();
+    const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    setDateVal(localToday);
+    setErrorMsg('');
+    setShowScoreModal(true);
+  }, []);
 
-  // ── Score submit ──────────────────────────────────────────────────────────
+  const openEditModal = useCallback((s: Score) => {
+    setModalMode('edit');
+    setActiveScoreId(s.id);
+    setScoreVal(s.score.toString());
+    setDateVal(s.date.split('T')[0]);
+    setErrorMsg('');
+    setShowScoreModal(true);
+  }, []);
+
+  const closeScoreModal = useCallback(() => setShowScoreModal(false), []);
+  const closeDeleteModal = useCallback(() => setShowDeleteModal(null), []);
+  const openDeleteModal = useCallback((id: string) => setShowDeleteModal(id), []);
 
   const handleScoreSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setScoreErr('');
+    setErrorMsg('');
     const num = Number(scoreVal);
-    if (!scoreVal || isNaN(num) || num < 1 || num > 45) { setScoreErr('Score must be 1–45 (Stableford).'); return; }
-    if (!dateVal) { setScoreErr('Please pick a date.'); return; }
-    setScoreLoading(true);
+    if (!scoreVal || isNaN(num) || num < 1 || num > 45 || !dateVal) {
+      setErrorMsg('Score must be between 1 and 45.');
+      return;
+    }
+
+    setActionLoading(true);
     try {
-      if (editingScore) {
-        await axios.put(api(`${CONFIG.API_ENDPOINTS.SCORES}/${editingScore.id}`), { score: num, date: dateVal }, { headers });
-        setEditingScore(null);
+      if (modalMode === 'add') {
+        await axios.post(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.SCORES}`, { score: num, date: dateVal }, { headers });
       } else {
-        await axios.post(api(CONFIG.API_ENDPOINTS.SCORES), { score: num, date: dateVal }, { headers });
+        await axios.put(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.SCORES}/${activeScoreId}`, { score: num, date: dateVal }, { headers });
       }
-      setScoreVal(''); setDateVal('');
-      await fetchDashboard();
+      setShowScoreModal(false);
+      await fetchDashboard(true);
     } catch (err: any) {
-      setScoreErr(err?.response?.data?.error || 'Failed to save score.');
+      setErrorMsg(err?.response?.data?.error || 'Action failed.');
     } finally {
-      setScoreLoading(false);
+      setActionLoading(false);
     }
   };
 
-  const handleEditScore = (s: Score) => { setEditingScore(s); setScoreVal(String(s.score)); setDateVal(s.date); };
-  const cancelEdit = () => { setEditingScore(null); setScoreVal(''); setDateVal(''); setScoreErr(''); };
-
-  const handleDeleteScore = async (id: string) => {
-    if (!window.confirm('Delete this score?')) return;
+  const handleDeleteScore = async () => {
+    if (!showDeleteModal) return;
+    setActionLoading(true);
     try {
-      await axios.delete(api(`${CONFIG.API_ENDPOINTS.SCORES}/${id}`), { headers });
-      await fetchDashboard();
-    } catch { alert('Failed to delete score.'); }
-  };
-
-  // ── Proof upload ──────────────────────────────────────────────────────────
-
-  const handleProofSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setProofErr('');
-    if (!proofWinnerId || !proofUrl) { setProofErr('Select a winner entry and enter a proof URL.'); return; }
-    setProofLoading(true);
-    try {
-      await axios.post(api(CONFIG.API_ENDPOINTS.UPLOAD_PROOF), { winner_id: proofWinnerId, proof_url: proofUrl }, { headers });
-      setProofUrl(''); setProofWinnerId('');
-      await fetchDashboard();
-    } catch (err: any) {
-      setProofErr(err?.response?.data?.error || 'Failed to submit proof.');
+      await axios.delete(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.SCORES}/${showDeleteModal}`, { headers });
+      setShowDeleteModal(null);
+      await fetchDashboard(true);
+    } catch {
+      alert('Delete failed.');
     } finally {
-      setProofLoading(false);
+      setActionLoading(false);
     }
   };
-
-  // ─── Render ───────────────────────────────────────────────────────────────
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <Loader2 className="w-10 h-10 text-secondary animate-spin" />
     </div>
   );
 
-  if (error) return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-4 text-white">
-      <AlertCircle className="w-12 h-12 text-red-400" />
-      <p className="text-slate-400">{error}</p>
-      <button onClick={fetchDashboard} className="px-6 py-3 bg-secondary text-dark rounded-xl font-black">Retry</button>
-    </div>
-  );
-
-  const sub = data!.subscription;
-  const scores = data!.scores;
-  const winnings = data!.winnings;
-  const isActive = sub.status === 'active';
-  const hasWinnings = winnings.length > 0;
-  const pendingWinners = winnings.filter(w => !w.proof_url);
-
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] right-[-10%] w-[55%] h-[55%] bg-secondary/5 blur-[140px] rounded-full" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[40%] h-[50%] bg-indigo-500/5 blur-[120px] rounded-full" />
-      </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
+      
 
-      <div className="relative z-10 pt-24 pb-20 px-4 sm:px-8 lg:px-16 max-w-7xl mx-auto">
-
-        {/* ── Header ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-12">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-1">Member Dashboard</p>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter">
-              Welcome, <span className="text-secondary">{data!.full_name.split(' ')[0]}</span>
-            </h1>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 sm:pt-32">
+        
+        {/* Hero Section */}
+        <div className="mb-8 sm:mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+          <div className="w-full md:w-auto">
+            <p className="text-secondary text-[9px] sm:text-[10px] font-black uppercase tracking-[0.4em] mb-2">Authenticated Hero</p>
+            <h2 className="text-4xl sm:text-5xl font-black text-dark tracking-tighter uppercase leading-none break-words">
+              {data?.full_name && !data.full_name.includes('@') 
+                ? data.full_name.split(' ')[0] 
+                : (user?.full_name || 'Member Hero')}
+            </h2>
           </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 px-5 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-bold text-sm text-slate-300 transition-all">
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
+          <div className="w-full md:w-auto bg-dark p-6 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] text-white min-w-full md:min-w-[280px] shadow-2xl shadow-dark/20 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">
+              <Trophy size={60} className="sm:w-20 sm:h-20" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Total Winnings</p>
+            <p className="text-3xl sm:text-4xl font-black tracking-tighter">£{data?.total_won.toFixed(2)}</p>
+          </div>
         </div>
 
-        {/* ── Grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* ── 1. Subscription Status ── */}
-          <Card title="Subscription" icon={<Crown className="w-5 h-5" />}>
-            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-black uppercase tracking-widest mb-4 ${badge(sub.status)}`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              {sub.status}
+        {/* Action Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
+          <div className="bg-white p-6 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-200 shadow-sm">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 rounded-xl sm:rounded-2xl flex items-center justify-center text-secondary mb-4 sm:mb-6">
+              <Activity size={20} className="sm:w-6 sm:h-6" />
             </div>
-            {sub.plan_id && <p className="text-slate-400 text-sm mb-1">Plan: <span className="text-white font-bold">{sub.plan_id.includes('yearly') ? 'Yearly' : 'Monthly'}</span></p>}
-            {sub.current_period_end && <p className="text-slate-400 text-sm">Renews: <span className="text-white font-bold">{fmtDate(sub.current_period_end)}</span></p>}
-            {!isActive && (
-              <button onClick={() => navigate('/subscription')} className="mt-4 w-full py-3 bg-secondary text-dark rounded-xl font-black text-sm hover:brightness-110 transition-all">
-                Subscribe Now
-              </button>
-            )}
-          </Card>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Rolling Scores</p>
+            <p className="text-2xl sm:text-3xl font-black text-dark">{data?.scores.length} <span className="text-slate-200">/ 5</span></p>
+          </div>
 
-          {/* ── 2. Charity Info ── */}
-          <Card title="Your Charity" icon={<Heart className="w-5 h-5" />}>
-            {data!.charity ? (
-              <>
-                <p className="text-white font-bold text-lg mb-1">{data!.charity.name}</p>
-                <p className="text-slate-400 text-sm mb-4 leading-relaxed line-clamp-2">{data!.charity.description}</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-secondary rounded-full" style={{ width: `${data!.donation_percentage}%` }} />
-                  </div>
-                  <span className="text-secondary font-black text-sm">{data!.donation_percentage}%</span>
-                </div>
-                <p className="text-slate-500 text-xs mt-1">of your subscription donated</p>
-              </>
-            ) : (
-              <p className="text-slate-500 text-sm">No charity selected.</p>
-            )}
-          </Card>
-
-          {/* ── 3. Draw Participation ── */}
-          <Card title="Draw Participation" icon={<Activity className="w-5 h-5" />}>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-white/5 rounded-2xl p-4 text-center">
-                <p className="text-3xl font-black text-secondary">{data!.draws.length}</p>
-                <p className="text-slate-400 text-xs mt-1 font-bold uppercase tracking-wider">Draws Entered</p>
+          <div className="bg-white p-6 sm:p-8 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-200 shadow-sm sm:col-span-2 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group">
+            <div className="w-full md:w-auto">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 rounded-xl sm:rounded-2xl flex items-center justify-center text-secondary mb-4">
+                <Heart size={20} className="sm:w-6 sm:h-6" />
               </div>
-              <div className="bg-white/5 rounded-2xl p-4 text-center">
-                <p className="text-3xl font-black text-white">{scores.length}</p>
-                <p className="text-slate-400 text-xs mt-1 font-bold uppercase tracking-wider">Scores Active</p>
-              </div>
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Impact Partner</p>
+              <p className="text-xl sm:text-2xl font-black text-dark truncate uppercase">{data?.charity?.name || 'Community Fund'}</p>
             </div>
-            <div className={`text-xs font-bold px-3 py-2 rounded-xl text-center ${scores.length > 0 && isActive ? 'bg-secondary/10 text-secondary' : 'bg-white/5 text-slate-400'}`}>
-              {scores.length > 0 && isActive ? '✓ Eligible for next draw' : 'Add scores to enter draws'}
+            <button 
+              onClick={openAddModal} 
+              className="w-full md:w-auto px-6 sm:px-8 py-4 sm:py-5 bg-secondary text-dark rounded-2xl sm:rounded-3xl flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer shadow-xl shadow-secondary/20 group/btn"
+            >
+              <Plus size={18} strokeWidth={4} />
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest">Add Score</span>
+            </button>
+          </div>
+        </div>
+
+        {/* History List */}
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex justify-between items-center px-2 sm:px-4 mb-2 sm:mb-4">
+             <h3 className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Score History</h3>
+          </div>
+
+          {data?.scores.length === 0 ? (
+            <div className="bg-white p-12 sm:p-20 rounded-[2rem] sm:rounded-[3rem] border border-slate-200 text-center">
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] sm:text-xs">No rounds recorded. Start your journey.</p>
             </div>
-          </Card>
-
-          {/* ── 4. Score Entry Form + Score List ── */}
-          <Card title="Golf Scores" icon={<TrendingUp className="w-5 h-5" />} className="lg:col-span-2">
-            {/* Form */}
-            <form onSubmit={handleScoreSubmit} className="bg-white/5 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <input
-                  type="number" min={1} max={45}
-                  value={scoreVal} onChange={e => setScoreVal(e.target.value)}
-                  placeholder="Score (1–45)"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium placeholder:text-slate-500 focus:outline-none focus:border-secondary/50 transition-colors"
-                />
-              </div>
-              <div className="flex-1">
-                <input
-                  type="date" value={dateVal} onChange={e => setDateVal(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-medium focus:outline-none focus:border-secondary/50 transition-colors"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" disabled={scoreLoading} className="flex items-center gap-2 px-5 py-3 bg-secondary text-dark rounded-xl font-black text-sm hover:brightness-110 transition-all disabled:opacity-60">
-                  {scoreLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : editingScore ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  {editingScore ? 'Save' : 'Add'}
-                </button>
-                {editingScore && (
-                  <button type="button" onClick={cancelEdit} className="px-3 py-3 bg-white/10 rounded-xl text-slate-300 hover:bg-white/20 transition-all">
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </form>
-            {scoreErr && <p className="text-red-400 text-sm mb-3 font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" />{scoreErr}</p>}
-
-            {/* Score list */}
-            {scores.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
-                <TrendingUp className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No scores yet. Add your first Stableford score above.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3">Last {scores.length} score{scores.length !== 1 ? 's' : ''} (most recent first)</p>
-                {scores.map((s, i) => (
-                  <div key={s.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${editingScore?.id === s.id ? 'bg-secondary/10 border-secondary/30' : 'bg-white/5 border-white/5 hover:border-white/10'}`}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${i === 0 ? 'bg-secondary/20 text-secondary' : 'bg-white/10 text-white'}`}>{s.score}</div>
-                      <div>
-                        <p className="text-white font-bold text-sm">{fmtDate(s.date)}</p>
-                        <p className="text-slate-500 text-xs font-medium">Stableford</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => handleEditScore(s)} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-secondary/20 hover:text-secondary flex items-center justify-center text-slate-400 transition-all">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => handleDeleteScore(s.id)} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-red-500/20 hover:text-red-400 flex items-center justify-center text-slate-400 transition-all">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {scores.length === 5 && (
-                  <p className="text-xs text-slate-500 text-center pt-1 font-medium">Maximum 5 scores stored — next entry replaces the oldest.</p>
-                )}
-              </div>
-            )}
-          </Card>
-
-          {/* ── 5. Winnings Overview ── */}
-          <Card title="Winnings" icon={<Trophy className="w-5 h-5" />}>
-            <div className="bg-gradient-to-br from-secondary/10 to-transparent rounded-2xl p-5 mb-4 text-center">
-              <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total Won</p>
-              <p className="text-4xl font-black text-secondary">£{data!.total_won.toFixed(2)}</p>
-            </div>
-            {winnings.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center">No winnings yet. Keep playing!</p>
-            ) : (
-              <div className="space-y-2">
-                {winnings.slice(0, 3).map(w => (
-                  <div key={w.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
-                    <div>
-                      <p className="text-white font-bold text-sm capitalize">{w.prize_tier?.replace('_', ' ')}</p>
-                      <p className="text-slate-500 text-xs">£{w.amount?.toFixed(2)}</p>
-                    </div>
-                    <span className={`text-xs font-black px-2 py-1 rounded-lg uppercase tracking-wider ${w.payment_status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                      {w.payment_status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* ── 6. Upload Proof (winners only) ── */}
-          {hasWinnings && pendingWinners.length > 0 && (
-            <Card title="Upload Proof" icon={<Upload className="w-5 h-5" />} className="lg:col-span-2">
-              <p className="text-slate-400 text-sm mb-4">You have a winning entry awaiting verification. Upload a screenshot of your scores from the golf platform.</p>
-              <form onSubmit={handleProofSubmit} className="space-y-3">
-                <select
-                  value={proofWinnerId} onChange={e => setProofWinnerId(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-secondary/50 transition-colors"
-                >
-                  <option value="">Select your winning entry…</option>
-                  {pendingWinners.map(w => (
-                    <option key={w.id} value={w.id}>{w.prize_tier?.replace('_', ' ')} — £{w.amount?.toFixed(2)}</option>
-                  ))}
-                </select>
-                <input
-                  type="url" value={proofUrl} onChange={e => setProofUrl(e.target.value)}
-                  placeholder="https://your-screenshot-url.com/proof.png"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-secondary/50 transition-colors"
-                />
-                {proofErr && <p className="text-red-400 text-sm font-medium flex items-center gap-2"><AlertCircle className="w-4 h-4" />{proofErr}</p>}
-                <button type="submit" disabled={proofLoading} className="flex items-center gap-2 px-6 py-3 bg-secondary text-dark rounded-xl font-black text-sm hover:brightness-110 transition-all disabled:opacity-60">
-                  {proofLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  Submit Proof for Review
-                </button>
-              </form>
-            </Card>
+          ) : (
+            data?.scores.map((s) => (
+              <ScoreCard key={s.id} s={s} onEdit={openEditModal} onDelete={openDeleteModal} />
+            ))
           )}
-
-          {/* ── Recent Draw History ── */}
-          {data!.draws.length > 0 && (
-            <Card title="Recent Draws" icon={<Calendar className="w-5 h-5" />} className="lg:col-span-full">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {data!.draws.slice(0, 6).map(d => (
-                  <div key={d.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-                    <Star className="w-4 h-4 text-secondary flex-shrink-0" />
-                    <div>
-                      <p className="text-white font-bold text-sm">Draw #{d.draw_id?.slice(0, 8)}</p>
-                      <p className="text-slate-500 text-xs">{fmtDate(d.created_at)}{d.prize_tier ? ` · ${d.prize_tier}` : ''}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-
         </div>
       </div>
+
+      {/* ─── MODALS (Rendered via Portals) ─── */}
+      <ScoreModal 
+        isOpen={showScoreModal}
+        onClose={closeScoreModal}
+        mode={modalMode}
+        scoreVal={scoreVal}
+        dateVal={dateVal}
+        setScoreVal={setScoreVal}
+        setDateVal={setDateVal}
+        errorMsg={errorMsg}
+        setErrorMsg={setErrorMsg}
+        actionLoading={actionLoading}
+        onSubmit={handleScoreSubmit}
+      />
+
+      <DeleteModal 
+        isOpen={!!showDeleteModal}
+        onClose={closeDeleteModal}
+        onConfirm={handleDeleteScore}
+        actionLoading={actionLoading}
+      />
+
     </div>
   );
 };

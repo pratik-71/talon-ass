@@ -1,314 +1,305 @@
-import React, { useState, useEffect } from 'react';
-import { Check, Zap, Shield, Crown, ArrowRight, Star, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { initializePaddle, Paddle } from '@paddle/paddle-js';
+import axios from 'axios';
+import gsap from 'gsap';
+import { Check, Crown, ShieldCheck, Zap, ArrowRight, Star, Loader2 } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
+import { CONFIG } from '../config';
 
-// Map local plan IDs to Paddle Price IDs provided by the user
 const PADDLE_PRICES = {
   monthly: import.meta.env.VITE_PADDLE_PRICE_MONTHLY,
   yearly: import.meta.env.VITE_PADDLE_PRICE_YEARLY
 };
 
-import { useAuthStore } from '../store/useAuthStore';
-
 const Subscription: React.FC = () => {
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [paddle, setPaddle] = useState<Paddle | undefined>();
-  const [prices, setPrices] = useState({ monthly: '$...', yearly: '$...' });
+  const [prices, setPrices] = useState({ monthly: '$9.99', yearly: '$39.99' });
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [infoModal, setInfoModal] = useState<{ isOpen: boolean, title: string, message: string } | null>(null);
+  
+  const { user, setAuth } = useAuthStore();
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Check user status
+  const isSubscribed = user?.subscription_status === 'active';
+  const currentPlan = user?.plan_type || 'none';
 
   useEffect(() => {
     initializePaddle({ 
-      environment: import.meta.env.VITE_PADDLE_ENV || 'sandbox', 
-      token: import.meta.env.VITE_PADDLE_CLIENT_TOKEN 
-    }).then(
-      (paddleInstance: Paddle | undefined) => {
-        if (paddleInstance) {
-          setPaddle(paddleInstance);
-          
-          // Fetch real prices dynamically
-          paddleInstance.PricePreview({
-            items: [
-              { priceId: PADDLE_PRICES.monthly, quantity: 1 },
-              { priceId: PADDLE_PRICES.yearly, quantity: 1 }
-            ]
-          }).then((result) => {
-            const lineItems = result.data.details.lineItems;
-            const fetchedPrices = { monthly: '$29', yearly: '$290' };
-            
-            lineItems.forEach((item: any) => {
-              if (item.price.id === PADDLE_PRICES.monthly) {
-                fetchedPrices.monthly = item.formattedTotals.total;
-              } else if (item.price.id === PADDLE_PRICES.yearly) {
-                fetchedPrices.yearly = item.formattedTotals.total;
-              }
-            });
-            
-            setPrices(fetchedPrices);
-          }).catch((err) => {
-            console.error('Failed to fetch dynamic prices:', err);
-            // Fallback to defaults
-            setPrices({ monthly: '$29', yearly: '$290' });
+      environment: import.meta.env.VITE_PADDLE_ENV as any || 'sandbox', 
+      token: import.meta.env.VITE_PADDLE_CLIENT_TOKEN,
+      eventCallback: (event: any) => {
+        if (event.name === 'checkout.completed') handleCheckoutSuccess(event.data);
+      }
+    }).then((paddleInstance) => {
+      if (paddleInstance) {
+        setPaddle(paddleInstance);
+        paddleInstance.PricePreview({
+          items: [
+            { priceId: PADDLE_PRICES.monthly, quantity: 1 },
+            { priceId: PADDLE_PRICES.yearly, quantity: 1 }
+          ]
+        }).then((result) => {
+          const lineItems = result.data.details.lineItems;
+          const newPrices = { ...prices };
+          lineItems.forEach((item: any) => {
+            if (item.price.id === PADDLE_PRICES.monthly) newPrices.monthly = item.formattedTotals.total;
+            if (item.price.id === PADDLE_PRICES.yearly) newPrices.yearly = item.formattedTotals.total;
           });
-        }
-      },
-    );
+          setPrices(newPrices);
+        });
+      }
+    });
+
+    gsap.fromTo(containerRef.current, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.8 });
   }, []);
 
-  const plans = [
-    {
-      id: 'monthly',
-      name: 'Monthly Plan',
-      price: prices.monthly,
-      period: 'per month',
-      description: 'Flexible access to all premium features.',
-      features: [
-        'Full Core Feature Access',
-        'Automated Score Tracking',
-        'Monthly Draw Entries',
-        'Verified Proof Uploads',
-        'Basic Charity Impact (10%)'
-      ],
-      icon: Zap,
-      recommended: false
-    },
-    {
-      id: 'yearly',
-      name: 'Yearly Plan',
-      price: prices.yearly,
-      period: 'per year',
-      description: 'The ultimate commitment. Get 2 months free.',
-      features: [
-        'Full Core Feature Access',
-        'Automated Score Tracking',
-        'Monthly Draw Entries',
-        'Verified Proof Uploads',
-        'Advanced Analytics Dashboard',
-        'Elite Hero Badge'
-      ],
-      icon: Crown,
-      recommended: true
-    }
-  ];
+  const handleCheckoutSuccess = async (data: any) => {
+    console.log('🏆 [PAYMENT SUCCESS] Data:', data);
+    
+    // 1. Triple-Close Strategy for maximum reliability
+    const forceClose = () => {
+      console.log('[Paddle] Attempting Overlay Close...');
+      if (paddle) paddle.Checkout.close();
+      if ((window as any).Paddle) (window as any).Paddle.Checkout.close();
+    };
 
-  const handleSubscribe = async (planId: 'monthly' | 'yearly') => {
-    if (!user) {
-      alert("Please log in first to subscribe.");
-      navigate('/login');
-      return;
-    }
+    forceClose(); // Immediate
+    setTimeout(forceClose, 1000); // After 1s
+    setTimeout(forceClose, 2500); // After 2.5s
+    
+    setIsFinalizing(true);
 
-    if (!paddle) {
-      alert("Payment system is still loading. Please try again in a few seconds.");
-      return;
-    }
+    try {
+      const currentToken = useAuthStore.getState().token;
+      const headers = { Authorization: `Bearer ${currentToken}` };
+      
+      // 2. Call the NEW Instant Unlock route (GET)
+      await axios.get(`${CONFIG.BACKEND_URL}/api/subscription/force-update-subscription`, { headers });
 
+      // 3. Sync Local State
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser) {
+        setAuth({ 
+          ...currentUser, 
+          subscription_status: 'active' 
+        }, currentToken || '');
+      }
+
+      console.log('✅ [Instant Unlock] Success. Redirecting...');
+      setTimeout(() => navigate('/dashboard'), 3000);
+    } catch (error) {
+      console.error('❌ [Instant Unlock] Failed:', error);
+      setTimeout(() => navigate('/dashboard'), 2000);
+    }
+  };
+
+  const handleSubscribe = (planId: 'monthly' | 'yearly') => {
+    if (!user) { navigate('/login'); return; }
+    if (!paddle) return;
+    
     setProcessingPlan(planId);
     
-    try {
-      paddle.Checkout.open({
-        items: [{ priceId: PADDLE_PRICES[planId], quantity: 1 }],
-        customData: {
-          user_id: user.id
-        },
-        settings: {
-          successUrl: window.location.origin + '/subscription/success',
-        },
-        eventCallback: (event) => {
-          if (event.name === 'checkout.completed') {
-            // OPTIMISTIC UPDATE: Update the store immediately
-            useAuthStore.setState({
-              user: {
-                ...user,
-                subscription_status: 'active',
-                plan_type: planId as any
-              }
-            });
-          }
-        }
-      });
-      // Let the overlay load before clearing the button loading state
-      setTimeout(() => setProcessingPlan(null), 1500);
-    } catch (error) {
-      console.error('Paddle Checkout Error:', error);
-      setProcessingPlan(null);
-    }
+    paddle.Checkout.open({
+      items: [{ priceId: PADDLE_PRICES[planId], quantity: 1 }],
+      customData: { user_id: user.id },
+      settings: { displayMode: 'overlay', theme: 'light' }
+    });
+
+    setTimeout(() => setProcessingPlan(null), 2500);
   };
 
   return (
     <>
-      <div className="min-h-screen bg-white pt-24 pb-20 px-6 lg:px-16 overflow-hidden relative">
-        {/* Cinematic Background */}
-        <div className="absolute top-[-10%] right-[-5%] w-[60%] h-[80%] bg-secondary/5 blur-[140px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[40%] h-[60%] bg-dark/5 blur-[120px] rounded-full pointer-events-none" />
-
-        <div className="max-w-6xl mx-auto relative z-10">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full mb-6">
-              <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Premium Access Required</span>
+      <div ref={containerRef} className="min-h-screen bg-[#F8FAFC] text-slate-900">
+        
+        {/* Loading Screen */}
+        {isFinalizing && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-white">
+            <div className="text-center px-6">
+              <div className="w-24 h-24 mx-auto mb-8 relative flex items-center justify-center">
+                <div className="absolute inset-0 border-[3px] border-secondary/10 border-t-secondary rounded-full animate-spin" />
+                <Crown className="w-8 h-8 text-secondary" />
+              </div>
+              <h2 className="text-4xl font-black mb-2 text-dark uppercase">You are now a Hero!</h2>
+              <p className="text-slate-500 font-bold mb-8">Setting up your private dashboard...</p>
+              <div className="w-64 h-1 bg-slate-100 mx-auto rounded-full overflow-hidden">
+                <div className="h-full bg-secondary w-full origin-left animate-[progress_4s_linear]" />
+              </div>
             </div>
-            <h1 className="text-5xl md:text-7xl font-black text-dark tracking-tighter mb-6 leading-tight">
-              Unlock Your <span className="text-secondary">Performance</span>.<br />
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 sm:pt-32 pb-24">
+          <div className="text-center mb-12 sm:mb-20">
+            <div className="inline-block px-4 py-1 bg-secondary/10 rounded-full mb-6">
+              <span className="text-[10px] font-black uppercase tracking-widest text-secondary">Join The Elite</span>
+            </div>
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight mb-6 text-dark uppercase leading-tight">
+              Unlock <span className="text-secondary">Premium</span>
             </h1>
-            <p className="text-slate-500 text-lg font-medium max-w-2xl mx-auto mb-10">
-              {user?.subscription_status === 'active' 
-                ? "Manage your active plan below. Thank you for your continued support and for making a difference."
-                : "Core features are reserved for active members. Choose your billing cycle below. Every subscription directly supports verified global charities."}
+            <p className="max-w-xl mx-auto text-sm sm:text-base text-slate-500 font-bold px-4">
+              Get more features, support local charities, and show off your Hero status to the world.
             </p>
           </div>
 
-          {user?.subscription_status === 'active' ? (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-dark rounded-[3rem] p-10 md:p-14 text-white text-center shadow-2xl relative overflow-hidden mb-8">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-[80%] bg-secondary/20 blur-[100px] rounded-full pointer-events-none" />
-                
-                <div className="relative z-10 flex flex-col items-center">
-                  <div className="w-20 h-20 bg-secondary/20 rounded-full flex items-center justify-center mb-8 border border-secondary/30 shadow-xl shadow-secondary/10">
-                    <Crown className="w-10 h-10 text-secondary" />
-                  </div>
-                  <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter">Active Subscription</h2>
-                  <p className="text-slate-400 text-lg mb-10 max-w-md font-medium leading-relaxed">
-                    You are currently on the <span className="text-secondary font-black uppercase tracking-widest">{user.plan_type || 'Unknown'}</span> plan. 
-                  </p>
-                  
-                  <button 
-                    onClick={() => alert("Manage subscription functionality will be implemented via Paddle Customer Portal integration.")}
-                    className="px-8 py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black transition-all flex items-center gap-2 group border border-white/5"
-                  >
-                    Manage Subscription
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto">
+            {/* Monthly Card */}
+            <div className={`p-8 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] border transition-all ${
+              currentPlan === 'monthly' ? 'border-secondary bg-secondary/5' : 'bg-white border-slate-200'
+            }`}>
+              <div className="flex justify-between mb-8">
+                <div className="w-12 h-12 rounded-xl bg-slate-50 text-secondary flex items-center justify-center">
+                  <Zap />
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl sm:text-3xl font-black text-dark">{prices.monthly}</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">Monthly</div>
                 </div>
               </div>
-
-              {user.plan_type === 'monthly' && (
-                <div className="bg-gradient-to-br from-slate-50 to-white border-2 border-slate-100 rounded-[3rem] p-10 flex flex-col md:flex-row items-center justify-between gap-8 shadow-xl shadow-slate-200/50 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/5 blur-[80px] rounded-full pointer-events-none" />
-                  <div className="flex-1 relative z-10">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary/10 rounded-full mb-4">
-                      <Zap className="w-3.5 h-3.5 text-secondary fill-secondary" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Upgrade Available</span>
-                    </div>
-                    <h3 className="text-2xl md:text-3xl font-black text-dark mb-3 tracking-tighter">Upgrade to Yearly</h3>
-                    <p className="text-slate-500 font-medium leading-relaxed max-w-lg">
-                      Save 16% annually and unlock the Elite Hero Badge. Get 2 months free by switching to the yearly commitment today.
-                    </p>
+              <h3 className="text-xl sm:text-2xl font-black mb-6 uppercase tracking-tight">Basic Hero</h3>
+              <div className="space-y-3 mb-10">
+                {["Full App Access", "Leaderboard Entry", "Basic Support"].map((f, i) => (
+                  <div key={i} className="flex items-center gap-3 text-slate-600 font-bold text-xs sm:text-sm">
+                    <Check className="w-4 h-4 text-secondary" strokeWidth={3} /> {f}
                   </div>
-                  <button 
-                    disabled={processingPlan !== null}
-                    onClick={() => handleSubscribe('yearly')}
-                    className={`w-full md:w-auto px-10 py-5 bg-secondary text-dark rounded-2xl font-black shadow-lg shadow-secondary/20 transition-all flex items-center justify-center gap-3 group whitespace-nowrap relative z-10 ${
-                      processingPlan !== null ? 'opacity-70 cursor-not-allowed' : 'hover:brightness-110'
-                    }`}
-                  >
-                    {processingPlan === 'yearly' ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        Upgrade Now
-                        <Crown className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
+                ))}
+              </div>
+              
+              <button 
+                onClick={() => handleSubscribe('monthly')}
+                disabled={(isSubscribed && currentPlan === 'monthly') || processingPlan === 'monthly'}
+                className={`w-full py-4 rounded-2xl font-black uppercase text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all ${
+                  (isSubscribed && currentPlan === 'monthly')
+                    ? 'bg-slate-100 text-slate-400 cursor-default' 
+                    : 'bg-dark text-white hover:bg-slate-800 cursor-pointer shadow-lg shadow-dark/10'
+                }`}
+              >
+                {(isSubscribed && currentPlan === 'monthly') ? "Current Plan" : "Get Monthly"}
+              </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 max-w-5xl mx-auto">
-              {plans.map((plan) => (
-                <div 
-                  key={plan.id}
-                  className={`relative group p-10 rounded-[3rem] border-2 transition-all duration-500 ${
-                    plan.recommended 
-                      ? 'bg-dark border-dark shadow-2xl shadow-dark/20' 
-                      : 'bg-white border-slate-100 hover:border-secondary/20 shadow-xl shadow-slate-200/50'
-                  }`}
-                >
-                  {plan.recommended && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-secondary text-dark text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-xl whitespace-nowrap z-20">
-                      Save 16% Annually
-                    </div>
-                  )}
 
-                  <div className="flex items-center justify-between mb-8 relative z-10">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${
-                      plan.recommended ? 'bg-white/10 text-secondary' : 'bg-slate-50 text-secondary group-hover:bg-secondary group-hover:text-white'
-                    }`}>
-                      <plan.icon className="w-7 h-7" />
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-4xl font-black tracking-tighter ${plan.recommended ? 'text-white' : 'text-dark'}`}>
-                        {plan.price}
-                      </div>
-                      <div className={`text-[10px] font-black uppercase tracking-widest ${plan.recommended ? 'text-slate-400' : 'text-slate-400'}`}>
-                        {plan.period}
-                      </div>
-                    </div>
-                  </div>
-
-                  <h3 className={`text-2xl font-black mb-4 relative z-10 ${plan.recommended ? 'text-white' : 'text-dark'}`}>{plan.name}</h3>
-                  <p className={`text-sm font-medium mb-10 leading-relaxed relative z-10 ${plan.recommended ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {plan.description}
-                  </p>
-
-                  <div className="space-y-4 mb-10 relative z-10">
-                    {plan.features.map((feature, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          plan.recommended ? 'bg-secondary/20 text-secondary' : 'bg-green-50 text-secondary'
-                        }`}>
-                          <Check className="w-3 h-3" strokeWidth={4} />
-                        </div>
-                        <span className={`text-sm font-bold ${plan.recommended ? 'text-slate-300' : 'text-slate-600'}`}>
-                          {feature}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button 
-                    disabled={processingPlan !== null}
-                    onClick={() => handleSubscribe(plan.id as 'monthly' | 'yearly')}
-                    className={`w-full py-5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 group shadow-xl relative z-10 ${
-                      plan.recommended 
-                        ? 'bg-secondary text-dark shadow-secondary/10' 
-                        : 'bg-dark text-white shadow-dark/10'
-                    } ${processingPlan !== null ? 'opacity-70 cursor-not-allowed' : (plan.recommended ? 'hover:brightness-110' : 'hover:bg-slate-800')}`}
-                  >
-                    {processingPlan === plan.id ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        {plan.id === 'monthly' ? 'Pay Monthly' : 'Pay Yearly'}
-                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
-                      </>
-                    )}
-                  </button>
+            {/* Yearly Card */}
+            <div className={`p-8 sm:p-10 pt-16 rounded-[2rem] sm:rounded-[2.5rem] relative transition-all ${
+              currentPlan === 'yearly' ? 'bg-secondary/10 border-2 border-secondary' : 'bg-dark text-white'
+            }`}>
+              <div className="absolute top-6 left-8 sm:left-10 bg-secondary text-dark text-[9px] sm:text-[10px] font-black px-3 sm:px-4 py-2 rounded-lg uppercase tracking-widest shadow-lg z-20">
+                67% OFF • Yearly
+              </div>
+              <div className="flex justify-between mb-8">
+                <div className="w-12 h-12 rounded-xl bg-white/10 text-secondary flex items-center justify-center">
+                  <Crown />
                 </div>
-              ))}
+                <div className="text-right">
+                  <div className="text-2xl sm:text-3xl font-black text-white">{prices.yearly}</div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase">Yearly</div>
+                </div>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black mb-6 uppercase tracking-tight">Super Hero</h3>
+              <div className="space-y-3 mb-10">
+                {["Elite Profile Badge", "Priority Support", "2 Months Free", "Advanced Tools"].map((f, i) => (
+                  <div key={i} className="flex items-center gap-3 text-slate-400 font-bold text-xs sm:text-sm">
+                    <Check className="w-4 h-4 text-secondary" strokeWidth={3} /> {f}
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => handleSubscribe('yearly')}
+                disabled={(isSubscribed && currentPlan === 'yearly') || processingPlan === 'yearly'}
+                className={`w-full py-4 rounded-2xl font-black uppercase text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xl ${
+                  (isSubscribed && currentPlan === 'yearly')
+                    ? 'bg-white/10 text-slate-500 cursor-default shadow-none'
+                    : 'bg-secondary text-dark hover:brightness-110 shadow-secondary/20'
+                }`}
+              >
+                {(isSubscribed && currentPlan === 'yearly') 
+                  ? "Current Plan" 
+                  : (isSubscribed ? "Upgrade to Yearly" : "Get Yearly")}
+              </button>
+            </div>
+          </div>
+          
+          {/* Manage Subscription Section for Active Members */}
+          {isSubscribed && (
+            <div className="mt-16 sm:mt-24 max-w-4xl mx-auto">
+               <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-8 sm:p-12 border-2 border-secondary/20 shadow-2xl shadow-secondary/5 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
+                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-secondary/5 rounded-full blur-3xl" />
+                  <div className="flex items-center gap-6 relative z-10">
+                     <div className="w-16 h-16 bg-secondary text-dark rounded-2xl flex items-center justify-center shadow-lg shadow-secondary/20">
+                        <ShieldCheck size={32} />
+                     </div>
+                     <div>
+                        <h2 className="text-2xl font-black text-dark uppercase tracking-tight">Active Membership</h2>
+                        <p className="text-slate-500 font-bold text-sm">You are currently on the <span className="text-secondary uppercase">{currentPlan}</span> plan.</p>
+                     </div>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      const currentToken = useAuthStore.getState().token;
+                      const headers = { Authorization: `Bearer ${currentToken}` };
+                      try {
+                        const res = await axios.get(`${CONFIG.BACKEND_URL}/api/subscriptions/manage`, { headers });
+                        if (res.data.url) {
+                          window.open(res.data.url, '_blank');
+                        }
+                      } catch (err: any) {
+                        console.error('Portal failed:', err);
+                        if (err.response?.status === 404) {
+                          setInfoModal({
+                            isOpen: true,
+                            title: "Hero Status: Active",
+                            message: "Your Hero membership is active! However, no Paddle billing record was found for this account. This typically happens in Test/Development mode or with manual activations."
+                          });
+                        } else {
+                          setInfoModal({
+                            isOpen: true,
+                            title: "Portal Error",
+                            message: "Failed to open billing portal. Please try again later."
+                          });
+                        }
+                      }
+                    }}
+                    className="w-full md:w-auto px-10 py-5 bg-dark text-white hover:bg-slate-800 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-xl shadow-dark/10 cursor-pointer relative z-10"
+                  >
+                    Manage Billing & Cancel
+                  </button>
+               </div>
             </div>
           )}
-
-          <div className="mt-20 flex flex-col items-center">
-            <div className="flex items-center gap-8 opacity-40 mb-8 grayscale hover:grayscale-0 transition-all duration-500 cursor-default">
-              <Shield className="w-6 h-6 text-dark" />
-              <div className="h-6 w-px bg-slate-200" />
-              <div className="font-black text-xs uppercase tracking-widest text-dark">Secure Paddle Payment Gateway</div>
-            </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center max-w-sm leading-relaxed">
-              Subscriptions auto-renew. Cancel anytime from your account settings with one click.
-            </p>
-          </div>
         </div>
+
+        <style>{`
+          @keyframes progress { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+        `}</style>
+
       </div>
+      
+      {/* Info Modal - Outside main container */}
+      {infoModal?.isOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+              <div className="p-10 text-center">
+                 <div className="w-20 h-20 bg-secondary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                    <ShieldCheck className="w-10 h-10 text-secondary" />
+                 </div>
+                 <h3 className="text-2xl font-black text-dark uppercase tracking-tighter mb-2">{infoModal.title}</h3>
+                 <p className="text-slate-500 font-bold text-sm leading-relaxed mb-8">{infoModal.message}</p>
+                 
+                 <button 
+                    onClick={() => setInfoModal(null)}
+                    className="w-full py-5 bg-dark text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 transition-all cursor-pointer shadow-lg shadow-dark/20"
+                 >
+                    Understood
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </>
   );
 };

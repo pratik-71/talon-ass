@@ -9,7 +9,7 @@ exports.getCharities = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('charities')
-      .select('id, name, description, logo_url')
+      .select('id, name, description, logo_url, website_url')
       .order('name', { ascending: true });
     
     if (error) throw error;

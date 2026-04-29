@@ -88,11 +88,11 @@ const Login: React.FC = () => {
       </div>
 
       {/* Right side: Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 md:p-20 bg-slate-50">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 md:p-20 bg-slate-50">
         <div className="w-full max-w-md">
-          <div className="mb-12">
-            <h1 className="text-4xl font-black text-dark tracking-tighter mb-4">Member Login</h1>
-            <p className="text-slate-500 font-medium">Access your Talon account.</p>
+          <div className="mb-8 sm:mb-12">
+            <h1 className="text-3xl sm:text-4xl font-black text-dark tracking-tighter mb-4">Member Login</h1>
+            <p className="text-slate-500 font-bold text-sm">Access your Talon account.</p>
           </div>
 
           {/* Server Message Area */}
@@ -101,11 +101,11 @@ const Login: React.FC = () => {
               serverMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'
             }`}>
               {serverMsg.type === 'success' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
-              <p className="text-sm font-bold">{serverMsg.text}</p>
+              <p className="text-xs font-bold">{serverMsg.text}</p>
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+          <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Email Address</label>
               <div className="relative group">
@@ -114,7 +114,7 @@ const Login: React.FC = () => {
                   {...register('email')}
                   type="email" 
                   placeholder="john@example.com"
-                  className={`w-full bg-white border-2 rounded-xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-dark shadow-sm ${
+                  className={`w-full bg-white border-2 rounded-xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-dark text-sm shadow-sm ${
                     errors.email ? 'border-red-100 focus:border-red-200' : 'border-slate-100 focus:border-secondary/30'
                   }`}
                 />
@@ -133,7 +133,7 @@ const Login: React.FC = () => {
                   {...register('password')}
                   type="password" 
                   placeholder="••••••••"
-                  className={`w-full bg-white border-2 rounded-xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-dark shadow-sm ${
+                  className={`w-full bg-white border-2 rounded-xl py-4 pl-12 pr-4 outline-none transition-all font-bold text-dark text-sm shadow-sm ${
                     errors.password ? 'border-red-100 focus:border-red-200' : 'border-slate-100 focus:border-secondary/30'
                   }`}
                 />
@@ -143,13 +143,13 @@ const Login: React.FC = () => {
 
             <button 
               disabled={isLoading}
-              className={`w-full bg-dark text-white py-5 rounded-xl font-black text-lg hover:bg-slate-800 transition-all shadow-xl shadow-dark/10 flex items-center justify-center gap-3 group mt-4 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              className={`w-full bg-dark text-white py-4 sm:py-5 rounded-xl font-black text-base sm:text-lg hover:bg-slate-800 transition-all shadow-xl shadow-dark/10 flex items-center justify-center gap-3 group mt-4 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               {isLoading ? 'Accessing...' : 'Access Dashboard'}
               {!isLoading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
             </button>
 
-            <p className="text-center text-slate-500 font-bold text-sm">
+            <p className="text-center text-slate-500 font-bold text-xs sm:text-sm pt-2">
               New to Talon? <Link to="/signup" className="text-secondary hover:underline ml-1">Create Account</Link>
             </p>
           </form>

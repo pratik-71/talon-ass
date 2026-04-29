@@ -3,13 +3,13 @@ import { Shield } from 'lucide-react';
 
 const Refund: React.FC = () => {
   return (
-    <div className="min-h-screen bg-slate-50 pt-32 pb-20 px-6 lg:px-16">
-      <div className="max-w-4xl mx-auto bg-white p-10 md:p-16 rounded-[3rem] shadow-xl border-2 border-slate-100">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center">
+    <div className="min-h-screen bg-slate-50 pt-24 sm:pt-32 pb-20 px-4 sm:px-6 lg:px-16">
+      <div className="max-w-4xl mx-auto bg-white p-8 sm:p-12 md:p-16 rounded-[2rem] sm:rounded-[3rem] shadow-xl border-2 border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
+          <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center shrink-0">
             <Shield className="w-6 h-6 text-secondary" />
           </div>
-          <h1 className="text-4xl font-black text-dark tracking-tighter">Refund Policy</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-dark tracking-tighter">Refund Policy</h1>
         </div>
         
         <div className="prose prose-slate max-w-none text-slate-600 font-medium leading-relaxed">

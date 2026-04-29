@@ -35,13 +35,29 @@ exports.getDashboardData = async (req, res) => {
     if (scoreError) throw scoreError;
 
     // 3. User profile + charity
-    const { data: profile, error: profileError } = await supabase
+    let { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('full_name, donation_percentage, charity_id, charities(name, description, logo_url)')
       .eq('id', userId)
       .maybeSingle();
 
-    if (profileError) throw profileError;
+    // ── FALLBACK: Create profile if missing ──
+    if (!profile && !profileError) {
+      const { data: newProfile, error: createError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          full_name: req.user.user_metadata?.full_name || 'Hero',
+          donation_percentage: req.user.user_metadata?.donation_percentage || 10,
+          charity_id: req.user.user_metadata?.charity_id || null
+        })
+        .select('full_name, donation_percentage, charity_id, charities(name, description, logo_url)')
+        .single();
+      
+      if (!createError) profile = newProfile;
+    } else if (profileError) {
+      throw profileError;
+    }
 
     // 4. Draw participation: count of draws user was eligible for (has scores)
     const { data: draws, error: drawError } = await supabase

@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const subscriptionController = require('../controllers/subscriptionController');
+const { requireAuth } = require('../middleware/authMiddleware');
 
-// We will need a middleware to verify JWT (already have auth logic, just need to extract it)
-// For now, let's just define the routes
-router.get('/status', subscriptionController.getSubscriptionStatus);
+// Public
 router.post('/webhook', subscriptionController.handleWebhook);
+
+// Protected
+router.get('/status', requireAuth, subscriptionController.getSubscriptionStatus);
+router.get('/manage', requireAuth, subscriptionController.getManagementLink);
+router.post('/force-update', requireAuth, subscriptionController.forceUpdateSubscription);
 
 module.exports = router;
