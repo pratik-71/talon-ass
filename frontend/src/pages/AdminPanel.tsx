@@ -36,6 +36,7 @@ const AdminPanel: React.FC = () => {
   const [executingDraw, setExecutingDraw] = useState(false);
   const [lastDrawResult, setLastDrawResult] = useState<any | null>(null);
   const [drawLogic, setDrawLogic] = useState<'random' | 'algorithmic'>('random');
+  const [processingWinnerId, setProcessingWinnerId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -102,12 +103,15 @@ const AdminPanel: React.FC = () => {
 
   const handleUpdateWinnerStatus = useCallback(async (winner: any, status: 'paid' | 'rejected') => {
     const executeUpdate = async () => {
+      setProcessingWinnerId(winner.id);
       try {
         await axios.put(`${CONFIG.BACKEND_URL}/api/admin/winners/${winner.id}/status`, { status }, { headers });
-        fetchData();
+        await fetchData();
         setModal({ isOpen: true, title: 'Success', message: `Winner status updated to ${status}.`, type: 'success' });
       } catch (err: any) {
         setModal({ isOpen: true, title: 'Error', message: 'Failed to update winner status.', type: 'error' });
+      } finally {
+        setProcessingWinnerId(null);
       }
     };
 
@@ -421,7 +425,7 @@ const AdminPanel: React.FC = () => {
           {activeTab === 'users' && <UsersTab users={users} onManageScores={handleManageScores} onToggleSubscription={setSubscriptionModal} onDeleteUser={handleDeleteUser} />}
           {activeTab === 'draws' && <DrawsTab drawLogic={drawLogic} setDrawLogic={setDrawLogic} executingDraw={executingDraw} onExecuteDraw={handleExecuteDraw} lastDrawResult={lastDrawResult} drawHistory={drawHistory} onViewWinner={(id) => navigate(`/verify-winner/${id}`)} />}
           {activeTab === 'charity' && <CharityTab charities={charities} onAddCharity={() => setCharityModal({ isOpen: true })} onEditCharity={(c) => setCharityModal({ isOpen: true, data: c })} onDeleteCharity={handleDeleteCharity} />}
-          {activeTab === 'winners' && <WinnersTab winners={winners} onPreviewImage={setPreviewImage} onUpdateStatus={handleUpdateWinnerStatus} />}
+          {activeTab === 'winners' && <WinnersTab winners={winners} onPreviewImage={setPreviewImage} onUpdateStatus={handleUpdateWinnerStatus} processingId={processingWinnerId} />}
         </div>
       </main>
 

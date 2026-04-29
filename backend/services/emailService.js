@@ -146,7 +146,11 @@ exports.sendStatusUpdateEmail = async (winnerEmail, winnerName, status, prizeAmo
     console.log(`[EmailService] ✨ Status update email sent (${status}) to ${winnerEmail}`);
     return true;
   } catch (error) {
-    console.error('[EmailService] ❌ Status update email failed:', error);
+    if (error.code === 'EAUTH') {
+      console.error('[EmailService] 🔑 AUTHENTICATION ERROR: Check your SMTP_USER and SMTP_PASS (App Password) in Vercel/Env.');
+    } else {
+      console.error('[EmailService] ❌ Status update email failed:', error);
+    }
     return false;
   }
 };

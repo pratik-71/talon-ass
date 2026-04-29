@@ -16,7 +16,6 @@ const Navbar: React.FC = () => {
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Messages', href: '/messages', icon: MessageSquare },
     { label: 'Charities', href: '/charities', icon: Heart },
-    { label: 'Admin Panel', href: '/admin', icon: Target },
   ]
 
   const navLinks = isAuthenticated ? memberLinks : guestLinks;

@@ -1,9 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const emailService = require('../services/emailService');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-
 exports.getStats = async (req, res) => {
   try {
     const [usersRes, subsRes, winnersRes, scoresRes, profilesRes, charitiesRes] = await Promise.all([
@@ -260,7 +257,7 @@ exports.executeDraw = async (req, res) => {
     // Fetch the specific user's Auth data (for email) and profile
     const [authRes, profileRes] = await Promise.all([
       supabaseAdmin.auth.admin.getUserById(selectedUserId),
-      supabaseAdmin.from('user_profiles').select('full_name').eq('id', selectedUserId).single()
+      supabaseAdmin.from('user_profiles').select('full_name, donation_percentage').eq('id', selectedUserId).single()
     ]);
 
     if (authRes.error || !authRes.data?.user) throw new Error('Selected winner Auth data not found');
@@ -348,7 +345,7 @@ exports.executeDraw = async (req, res) => {
         heroEmail: selectedAuthUser.email,
         logicUsed: logic,
         jackpot_amount: noGrandWinner ? 0 : Math.round(tier5MatchTotal),
-        charity_contribution: Math.round(basePool * 0.1), // Example 10%
+        charity_contribution: Math.round(basePool * (profile?.donation_percentage / 100 || 0.1)),
         draw_date: drawRec.draw_date,
         isSimulation: false
       }

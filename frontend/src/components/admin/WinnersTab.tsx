@@ -1,5 +1,5 @@
 import React from 'react';
-import { ZoomIn, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
+import { ZoomIn, CheckCircle2, XCircle, Sparkles, Loader2 } from 'lucide-react';
 
 interface Winner {
   id: string;
@@ -15,9 +15,10 @@ interface WinnersTabProps {
   winners: Winner[];
   onPreviewImage: (url: string) => void;
   onUpdateStatus: (winner: Winner, status: 'paid' | 'rejected') => void;
+  processingId: string | null;
 }
 
-const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpdateStatus }) => {
+const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpdateStatus, processingId }) => {
   return (
     <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm animate-in fade-in duration-500">
       <div className="p-8 sm:p-12 border-b border-slate-100">
@@ -70,7 +71,12 @@ const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpda
                   )}
                 </td>
                 <td className="px-10 py-6 text-right">
-                  {w.status?.toLowerCase().startsWith('pending') && (
+                  {processingId === w.id ? (
+                    <div className="flex items-center justify-end gap-2 text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Processing...</span>
+                    </div>
+                  ) : w.status?.toLowerCase().startsWith('pending') ? (
                     <div className="flex items-center justify-end gap-2">
                       <button 
                         onClick={() => onUpdateStatus(w, 'paid')}
@@ -87,13 +93,12 @@ const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpda
                         <XCircle size={16} />
                       </button>
                     </div>
-                  )}
-                  {w.status === 'paid' && (
+                  ) : w.status === 'paid' ? (
                     <div className="flex items-center justify-end gap-2 text-emerald-500">
                       <Sparkles size={16} />
                       <span className="text-[10px] font-black uppercase tracking-widest">Authorized</span>
                     </div>
-                  )}
+                  ) : null}
                 </td>
               </tr>
             ))}
