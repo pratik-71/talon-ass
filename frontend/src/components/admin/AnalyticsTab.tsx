@@ -10,7 +10,10 @@ interface Stat {
 
 interface AnalyticsTabProps {
   stats: Stat[];
-  statsData: any;
+  statsData: {
+    growthCurve?: number[];
+    charityMix?: Array<{ label: string; value: number }>;
+  };
 }
 
 const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, statsData }) => {
@@ -28,7 +31,7 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, statsData }) => {
       { label: 'Environment', value: 25, color: 'bg-dark' }
     ];
     
-    return rawMix.map((c: any, i: number) => ({
+    return rawMix.map((c, i: number) => ({
       label: c.label,
       value: c.value,
       color: i === 0 ? 'bg-emerald-500' : (i === 1 ? 'bg-secondary' : 'bg-dark')

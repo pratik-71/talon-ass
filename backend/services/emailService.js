@@ -25,7 +25,7 @@ exports.sendWinnerEmail = async (winnerEmail, winnerName, prizeTier, amount, ver
   const mailOptions = {
     from: `"TALON PLATFORM" <${process.env.SMTP_USER}>`,
     to: winnerEmail,
-    subject: '🏆 CONGRATULATIONS: You are a Talon Winner!',
+    subject: 'CONGRATULATIONS: You are a Talon Winner!',
     html: `
       <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #0f172a; color: #ffffff; padding: 40px; text-align: center; border-radius: 20px;">
         <div style="margin-bottom: 30px;">
@@ -105,7 +105,7 @@ exports.sendStatusUpdateEmail = async (winnerEmail, winnerName, status, prizeAmo
   const mailOptions = {
     from: `"TALON PLATFORM" <${process.env.SMTP_USER}>`,
     to: winnerEmail,
-    subject: isApproved ? '✅ PRIZE AUTHORIZED: Your Talon Payout is ready!' : '❌ ACTION REQUIRED: Prize Submission Issue',
+    subject: isApproved ? 'PRIZE AUTHORIZED: Your Talon Payout is ready!' : 'ACTION REQUIRED: Prize Submission Issue',
     html: `
       <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #0f172a; color: #ffffff; padding: 40px; text-align: center; border-radius: 20px;">
         <div style="margin-bottom: 30px;">
@@ -140,17 +140,22 @@ exports.sendStatusUpdateEmail = async (winnerEmail, winnerName, status, prizeAmo
     `
   };
 
+  console.log('[EmailService] 📧 Preparing status update notification...');
+  console.log('[EmailService] 📍 Target:', winnerEmail, '| Status:', status);
+
   try {
     await transporter.verify();
+    console.log('[EmailService] ✅ SMTP Connection Verified.');
+    
     await transporter.sendMail(mailOptions);
-    console.log(`[EmailService] ✨ Status update email sent (${status}) to ${winnerEmail}`);
+    console.log(`[EmailService] ✨ Status update email sent successfully to ${winnerEmail}`);
     return true;
   } catch (error) {
-    if (error.code === 'EAUTH') {
-      console.error('[EmailService] 🔑 AUTHENTICATION ERROR: Check your SMTP_USER and SMTP_PASS (App Password) in Vercel/Env.');
-    } else {
-      console.error('[EmailService] ❌ Status update email failed:', error);
-    }
+    console.error('[EmailService] ❌ STATUS UPDATE EMAIL FAILURE:', {
+      message: error.message,
+      code: error.code,
+      response: error.response
+    });
     return false;
   }
 };

@@ -336,16 +336,27 @@ exports.executeDraw = async (req, res) => {
       );
     }
 
+    const currentJackpot = noGrandWinner ? 0 : Math.round(tier5MatchTotal);
+
+    // Get charity name
+    let charityName = 'Global Fund';
+    if (profile?.charity_id) {
+      const { data: charData } = await supabaseAdmin.from('charities').select('name').eq('id', profile.charity_id).single();
+      if (charData) charityName = charData.name;
+    }
+
     res.json({ 
       success: true, 
       message: 'Draw executed successfully',
       summary: {
         drawId: drawRec.id,
+        winner_id: winnerRec?.id,
         winner_name: profile?.full_name || 'Anonymous Hero',
+        charity_name: charityName,
         heroEmail: selectedAuthUser.email,
         logicUsed: logic,
-        jackpot_amount: noGrandWinner ? 0 : Math.round(tier5MatchTotal),
-        charity_contribution: Math.round(basePool * (profile?.donation_percentage / 100 || 0.1)),
+        jackpot_amount: currentJackpot,
+        charity_contribution: (currentJackpot * (profile?.donation_percentage || 15)) / 100,
         draw_date: drawRec.draw_date,
         isSimulation: false
       }
@@ -407,6 +418,7 @@ exports.getDrawHistory = async (req, res) => {
       
       return {
         id: d.id,
+        winner_id: winner ? winner.id : null,
         draw_date: d.draw_date,
         status: winner ? winner.payment_status : 'Rolled Over',
         winner_name: profile ? profile.full_name : (d.rollover_amount > 0 ? 'No Grand Winner' : 'Anonymous Hero'),
@@ -440,22 +452,41 @@ exports.updateWinnerStatus = async (req, res) => {
     // ── NOTIFICATIONS ON STATUS UPDATE ──────────────────────
     try {
       // Fetch winner details to get user email and prize info
+      // Using separate queries to avoid join naming conflicts
+      console.log('[Admin] Notification Trace: Fetching winner record for ID:', id);
       const { data: winner } = await supabaseAdmin
         .from('winners')
-        .select('*, user_profiles(full_name)')
+        .select('*')
         .eq('id', id)
         .single();
-
+ 
       if (winner) {
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(winner.user_id);
-        if (authUser?.user?.email) {
+        const { data: profile } = await supabaseAdmin
+          .from('user_profiles')
+          .select('full_name')
+          .eq('id', winner.user_id)
+          .single();
+
+        if (!profile) console.warn('[Admin] Notification Trace: User profile not found for winner:', winner.user_id);
+
+        console.log('[Admin] Notification Trace: Winner found. UserID:', winner.user_id);
+        const { data: authUser, error: authErr } = await supabaseAdmin.auth.admin.getUserById(winner.user_id);
+        
+        if (authErr) {
+          console.error('[Admin] Notification Trace: Auth lookup error:', authErr);
+        } else if (authUser?.user?.email) {
+          console.log('[Admin] Notification Trace: Sending email to:', authUser.user.email);
           await emailService.sendStatusUpdateEmail(
             authUser.user.email,
-            winner.user_profiles?.full_name || 'Hero',
+            profile?.full_name || 'Hero',
             status,
             winner.amount
           );
+        } else {
+          console.warn('[Admin] Notification Trace: No email found for user ID:', winner.user_id);
         }
+      } else {
+        console.warn('[Admin] Notification Trace: Winner record not found for ID:', id);
       }
     } catch (notifErr) {
       console.error('[Admin] Notification trigger failed:', notifErr);

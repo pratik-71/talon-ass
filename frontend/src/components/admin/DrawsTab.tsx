@@ -79,8 +79,9 @@ const DrawsTab: React.FC<DrawsTabProps> = ({
                 <p className="text-xl font-black">£{(lastDrawResult.jackpot_amount || 0).toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Support Contribution</p>
-                <p className="text-xl font-black">£{(lastDrawResult.charity_contribution || 0).toFixed(2)}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Impact Charity</p>
+                <p className="text-xs font-black uppercase tracking-tight">{lastDrawResult.charity_name || 'Global Fund'}</p>
+                <p className="text-[10px] font-bold text-white/60">£{(lastDrawResult.charity_contribution || 0).toFixed(2)} Contributed</p>
               </div>
             </div>
           </div>
