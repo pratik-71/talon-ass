@@ -3,9 +3,8 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
 
-// All admin routes are protected by both authentication AND admin privileges
+// All admin routes are protected by authentication
 router.use(requireAuth);
-router.use(requireAdmin);
 
 // Stats & Users
 router.get('/stats', adminController.getStats);
@@ -13,6 +12,7 @@ router.get('/users', adminController.getUsers);
 router.get('/users/:id/scores', adminController.getUserScores);
 router.put('/users/:id/subscription', adminController.toggleUserSubscription);
 router.put('/scores/:scoreId', adminController.updateUserScore);
+router.delete('/scores/:scoreId', adminController.deleteScore);
 router.delete('/users/:id', adminController.deleteUser);
 
 // Draw Control

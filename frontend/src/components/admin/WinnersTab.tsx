@@ -14,7 +14,7 @@ interface Winner {
 interface WinnersTabProps {
   winners: Winner[];
   onPreviewImage: (url: string) => void;
-  onUpdateStatus: (id: string, status: 'paid' | 'rejected') => void;
+  onUpdateStatus: (winner: Winner, status: 'paid' | 'rejected') => void;
 }
 
 const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpdateStatus }) => {
@@ -28,7 +28,7 @@ const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpda
         <table className="w-full text-left border-collapse min-w-[900px]">
           <thead>
             <tr className="bg-slate-50/50">
-              <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Winner Hero</th>
+              <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Winner</th>
               <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Draw Date</th>
               <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Prize Amount</th>
               <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
@@ -47,7 +47,7 @@ const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpda
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{new Date(w.draw_date).toLocaleDateString()}</p>
                 </td>
                 <td className="px-10 py-6">
-                  <p className="text-sm font-black text-dark">£{w.prize_amount.toFixed(2)}</p>
+                  <p className="text-sm font-black text-dark">£{(w.prize_amount || 0).toFixed(2)}</p>
                 </td>
                 <td className="px-10 py-6">
                   <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
@@ -70,17 +70,17 @@ const WinnersTab: React.FC<WinnersTabProps> = ({ winners, onPreviewImage, onUpda
                   )}
                 </td>
                 <td className="px-10 py-6 text-right">
-                  {w.status === 'pending' && w.proof_url && (
+                  {w.status?.toLowerCase().startsWith('pending') && (
                     <div className="flex items-center justify-end gap-2">
                       <button 
-                        onClick={() => onUpdateStatus(w.id, 'paid')}
+                        onClick={() => onUpdateStatus(w, 'paid')}
                         className="p-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-md shadow-emerald-500/10 cursor-pointer"
                         title="Verify & Pay"
                       >
                         <CheckCircle2 size={16} />
                       </button>
                       <button 
-                        onClick={() => onUpdateStatus(w.id, 'rejected')}
+                        onClick={() => onUpdateStatus(w, 'rejected')}
                         className="p-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all shadow-md shadow-red-500/10 cursor-pointer"
                         title="Reject Submission"
                       >

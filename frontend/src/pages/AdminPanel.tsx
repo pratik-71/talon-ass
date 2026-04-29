@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Users, Trophy, Heart, ShieldCheck, BarChart3, Search, Trash2,
-  Play, ExternalLink, Loader2, Plus, LogOut, CheckCircle2, XCircle, AlertCircle, Edit2, Wallet, FileCheck, Sparkles,  History, ZoomIn, ImageOff
+  Play, ExternalLink, Loader2, Plus, LogOut, CheckCircle2, XCircle, AlertCircle, Edit2, Wallet, FileCheck, Sparkles,  History, ZoomIn, ImageOff, RefreshCcw
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { CONFIG } from '../config';
@@ -36,7 +36,6 @@ const AdminPanel: React.FC = () => {
   const [executingDraw, setExecutingDraw] = useState(false);
   const [lastDrawResult, setLastDrawResult] = useState<any | null>(null);
   const [drawLogic, setDrawLogic] = useState<'random' | 'algorithmic'>('random');
-  const [isSimulation, setIsSimulation] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -48,6 +47,13 @@ const AdminPanel: React.FC = () => {
   const [editingScore, setEditingScore] = useState<any | null>(null);
   const [subscriptionModal, setSubscriptionModal] = useState<any | null>(null);
   const [charityModal, setCharityModal] = useState<{isOpen: boolean, data?: any}>({isOpen: false});
+  const [selectedPlan, setSelectedPlan] = useState<'pro_monthly' | 'pro_yearly'>('pro_monthly');
+  
+  // Admin Entry Guard State
+  const [isAdminAuth, setIsAdminAuth] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [authError, setAuthError] = useState(false);
 
   const { token, logout } = useAuthStore();
   const navigate = useNavigate();
@@ -78,25 +84,52 @@ const AdminPanel: React.FC = () => {
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
-    fetchData();
-  }, [token, fetchData, navigate]);
+    // Only fetch if verified via the guard
+    if (isAdminAuth) {
+      fetchData();
+    }
+  }, [token, isAdminAuth, fetchData, navigate]);
 
-  const handleUpdateWinnerStatus = useCallback((id: string, status: 'paid' | 'rejected') => {
-    setModal({
-      isOpen: true,
-      title: status === 'paid' ? 'Confirm Approval?' : 'Confirm Rejection?',
-      message: status === 'paid' ? 'Release prize payment.' : 'Notify user to re-upload.',
-      type: status === 'paid' ? 'confirm' : 'reject',
-      onConfirm: async () => {
-        try {
-          await axios.put(`${CONFIG.BACKEND_URL}/api/admin/winners/${id}/status`, { status }, { headers });
-          fetchData();
-          setModal({ isOpen: true, title: 'Success', message: 'Winner status updated.', type: 'success' });
-        } catch (err: any) {
-          setModal({ isOpen: true, title: 'Error', message: err.response?.data?.error, type: 'error' });
-        }
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminEmail === 'admin@gmail.com' && adminPassword === 'admin123') {
+      setIsAdminAuth(true);
+      setAuthError(false);
+    } else {
+      setAuthError(true);
+    }
+  };
+
+  const handleUpdateWinnerStatus = useCallback(async (winner: any, status: 'paid' | 'rejected') => {
+    const executeUpdate = async () => {
+      try {
+        await axios.put(`${CONFIG.BACKEND_URL}/api/admin/winners/${winner.id}/status`, { status }, { headers });
+        fetchData();
+        setModal({ isOpen: true, title: 'Success', message: `Winner status updated to ${status}.`, type: 'success' });
+      } catch (err: any) {
+        setModal({ isOpen: true, title: 'Error', message: 'Failed to update winner status.', type: 'error' });
       }
-    });
+    };
+
+    if (status === 'paid' && !winner.proof_url) {
+      setModal({
+        isOpen: true,
+        title: 'Authorize Payout?',
+        message: 'This hero hasn\'t submitted proof yet. Are you sure you want to authorize payout?',
+        type: 'confirm',
+        onConfirm: executeUpdate
+      });
+    } else if (status === 'rejected') {
+      setModal({
+        isOpen: true,
+        title: 'Reject Submission?',
+        message: 'This will deny the current prize claim. Are you sure?',
+        type: 'reject',
+        onConfirm: executeUpdate
+      });
+    } else {
+      executeUpdate();
+    }
   }, [headers, fetchData]);
 
   const handleManageScores = useCallback((user: {id: string, name: string}) => {
@@ -111,7 +144,7 @@ const AdminPanel: React.FC = () => {
   const handleDeleteUser = useCallback((id: string) => {
     setModal({
       isOpen: true,
-      title: 'Purge Hero?',
+      title: 'Delete User?',
       message: 'This action is permanent.',
       type: 'confirm',
       onConfirm: async () => {
@@ -125,6 +158,41 @@ const AdminPanel: React.FC = () => {
       }
     });
   }, [headers]);
+
+  const handleDeleteScore = useCallback((scoreId: string) => {
+    setModal({
+      isOpen: true,
+      title: 'Delete Score?',
+      message: 'This score record will be permanently removed.',
+      type: 'confirm',
+      onConfirm: async () => {
+        try {
+          await axios.delete(`${CONFIG.BACKEND_URL}/api/admin/scores/${scoreId}`, { headers });
+          setUserScores(prev => prev.filter(s => s.id !== scoreId));
+          setModal({ isOpen: true, title: 'Success', message: 'Score record deleted.', type: 'success' });
+        } catch (err) {
+          setModal({ isOpen: true, title: 'Error', message: 'Failed to delete score.', type: 'error' });
+        }
+      }
+    });
+  }, [headers]);
+
+  const handleUpdateScore = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingScore) return;
+    const formData = new FormData(e.currentTarget);
+    const score = Number(formData.get('score'));
+    const date = formData.get('date') as string;
+
+    try {
+      await axios.put(`${CONFIG.BACKEND_URL}/api/admin/scores/${editingScore.id}`, { score, date }, { headers });
+      setEditingScore(null);
+      if (selectedUser) handleManageScores(selectedUser);
+      setModal({ isOpen: true, title: 'Success', message: 'Score updated successfully.', type: 'success' });
+    } catch (err: any) {
+      setModal({ isOpen: true, title: 'Error', message: 'Failed to update score.', type: 'error' });
+    }
+  };
 
   const handleToggleSubscription = useCallback(async (user: any) => {
     const newStatus = user.status === 'active' ? 'inactive' : 'active';
@@ -179,20 +247,24 @@ const AdminPanel: React.FC = () => {
     });
   }, [headers, fetchData]);
 
-  const handleExecuteDraw = useCallback(async () => {
+  const handleExecuteDraw = async () => {
     setExecutingDraw(true);
-    setLastDrawResult(null);
     try {
-      const res = await axios.post(`${CONFIG.BACKEND_URL}/api/admin/draw/execute`, { logic: drawLogic, simulation: isSimulation }, { headers });
+      const res = await axios.post(`${CONFIG.BACKEND_URL}/api/admin/draw/execute`, { logic: drawLogic }, { headers });
       setLastDrawResult(res.data.summary);
-      if (!isSimulation) fetchData();
-      setModal({ isOpen: true, title: 'Success', message: 'Draw executed.', type: 'success' });
+      setDrawHistory(prev => [res.data.summary, ...prev]);
+      setModal({ 
+        isOpen: true, 
+        title: 'Selection Success', 
+        message: `Winner: ${res.data.summary.winner_name || 'Anonymous'}`, 
+        type: 'success' 
+      });
     } catch (err: any) {
-      setModal({ isOpen: true, title: 'Error', message: err.response?.data?.error, type: 'error' });
+      setModal({ isOpen: true, title: 'Error', message: err.response?.data?.error || 'Draw execution failed', type: 'error' });
     } finally {
       setExecutingDraw(false);
     }
-  }, [headers, drawLogic, isSimulation, fetchData]);
+  };
 
   const stats = useMemo(() => [
     { label: 'Total Users', value: statsData?.totalUsers || '0', trend: '+12%', icon: Users },
@@ -200,6 +272,79 @@ const AdminPanel: React.FC = () => {
     { label: 'Charity Giving', value: `£${statsData?.charityImpact?.toFixed(0) || '0'}`, trend: '+£1.2k', icon: Heart },
     { label: 'Verified Scores', value: statsData?.totalScores || '0', trend: '+5%', icon: ShieldCheck },
   ], [statsData]);
+
+  if (!isAdminAuth) return (
+    <div className="h-screen bg-dark flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Background Glow */}
+      <div className="absolute top-[-20%] right-[-10%] w-[70%] h-[70%] bg-secondary/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-white/5 blur-[100px] rounded-full pointer-events-none" />
+
+      <div className="w-full max-w-md animate-in zoom-in-95 duration-500 z-10">
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[3rem] p-10 sm:p-14 shadow-2xl">
+          <div className="flex flex-col items-center mb-10 text-center">
+            <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center text-dark mb-6 shadow-lg shadow-secondary/20">
+              <ShieldCheck size={32} strokeWidth={2.5} />
+            </div>
+            <h1 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Admin Panel</h1>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Restricted Access Area</p>
+          </div>
+
+          <form onSubmit={handleAdminLogin} className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 ml-1">Admin Email</label>
+              <div className="relative group">
+                <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-secondary transition-colors" />
+                <input 
+                  type="email" 
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-12 py-4 font-bold text-white focus:outline-none focus:border-secondary/50 focus:ring-4 ring-secondary/5 transition-all" 
+                  placeholder="admin@gmail.com"
+                  required 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 ml-1">Admin Password</label>
+              <div className="relative group">
+                <LogOut className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-secondary transition-colors rotate-90" />
+                <input 
+                  type="password" 
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-12 py-4 font-bold text-white focus:outline-none focus:border-secondary/50 focus:ring-4 ring-secondary/5 transition-all" 
+                  placeholder="••••••••"
+                  required 
+                />
+              </div>
+            </div>
+
+            {authError && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-[10px] font-black uppercase tracking-widest animate-in shake duration-300">
+                <XCircle size={16} /> Invalid Credentials
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              className="w-full py-5 bg-secondary text-dark rounded-2xl font-black uppercase text-xs tracking-widest hover:brightness-110 active:scale-[0.98] transition-all shadow-xl shadow-secondary/10 cursor-pointer"
+            >
+              Login to Admin Panel
+            </button>
+            
+            <button 
+              type="button"
+              onClick={() => navigate('/')}
+              className="w-full py-5 text-slate-400 font-black uppercase text-[10px] tracking-widest hover:text-white transition-colors cursor-pointer"
+            >
+              Abort & Return Home
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
 
   if (loading && !statsData) return (
     <div className="h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -214,14 +359,14 @@ const AdminPanel: React.FC = () => {
           <div className="flex items-center justify-between mb-10">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center text-dark"><ShieldCheck size={18} strokeWidth={3} /></div>
-              <h1 className="text-xl font-black tracking-tighter uppercase">Admin HQ</h1>
+              <h1 className="text-xl font-black tracking-tighter uppercase">Admin Panel</h1>
             </div>
             <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden p-1 text-slate-400 hover:text-white"><XCircle size={24} /></button>
           </div>
           <nav className="space-y-2">
             {[
               { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-              { id: 'users', label: 'User Registry', icon: Users },
+              { id: 'users', label: 'Users', icon: Users },
               { id: 'draws', label: 'Draw Control', icon: Play },
               { id: 'charity', label: 'Impact Hub', icon: Heart },
               { id: 'winners', label: 'Winner Verification', icon: Trophy },
@@ -250,15 +395,31 @@ const AdminPanel: React.FC = () => {
         <header className="flex items-center justify-between px-6 sm:px-10 py-6 sm:py-8 bg-white border-b border-slate-100 shrink-0">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-dark uppercase tracking-tight">{activeTab}</h2>
-            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Management HQ</p>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Management</p>
           </div>
-          <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 bg-slate-50 rounded-lg text-slate-600"><BarChart3 size={20} /></button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => fetchData()} 
+              disabled={loading}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+              Sync Data
+            </button>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 bg-slate-50 rounded-lg text-slate-600"><BarChart3 size={20} /></button>
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-10 scrollbar-hide">
-          {activeTab === 'analytics' && <AnalyticsTab stats={stats} />}
-          {activeTab === 'users' && <UsersTab users={users} onManageScores={handleManageScores} onToggleSubscription={handleToggleSubscription} onDeleteUser={handleDeleteUser} />}
-          {activeTab === 'draws' && <DrawsTab drawLogic={drawLogic} setDrawLogic={setDrawLogic} isSimulation={isSimulation} setIsSimulation={setIsSimulation} executingDraw={executingDraw} onExecuteDraw={handleExecuteDraw} lastDrawResult={lastDrawResult} drawHistory={drawHistory} onViewWinner={(id) => navigate(`/verify-winner/${id}`)} />}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-10 scrollbar-hide relative">
+          {loading && statsData && (
+            <div className="absolute top-10 right-10 z-20 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-100 shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
+              <Loader2 className="w-4 h-4 text-secondary animate-spin" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Refreshing...</span>
+            </div>
+          )}
+          {activeTab === 'analytics' && <AnalyticsTab stats={stats} statsData={statsData} />}
+          {activeTab === 'users' && <UsersTab users={users} onManageScores={handleManageScores} onToggleSubscription={setSubscriptionModal} onDeleteUser={handleDeleteUser} />}
+          {activeTab === 'draws' && <DrawsTab drawLogic={drawLogic} setDrawLogic={setDrawLogic} executingDraw={executingDraw} onExecuteDraw={handleExecuteDraw} lastDrawResult={lastDrawResult} drawHistory={drawHistory} onViewWinner={(id) => navigate(`/verify-winner/${id}`)} />}
           {activeTab === 'charity' && <CharityTab charities={charities} onAddCharity={() => setCharityModal({ isOpen: true })} onEditCharity={(c) => setCharityModal({ isOpen: true, data: c })} onDeleteCharity={handleDeleteCharity} />}
           {activeTab === 'winners' && <WinnersTab winners={winners} onPreviewImage={setPreviewImage} onUpdateStatus={handleUpdateWinnerStatus} />}
         </div>
@@ -326,7 +487,7 @@ const AdminPanel: React.FC = () => {
                 <div className="bg-white/5 border border-white/10 rounded-3xl p-20 text-center">
                    <ImageOff size={64} className="text-slate-500 mx-auto mb-6" />
                    <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Proof Image Offline</h3>
-                   <p className="text-sm text-slate-400 font-bold max-w-xs mx-auto">The link provided by the Hero is currently unreachable. Please verify with the user.</p>
+                   <p className="text-sm text-slate-400 font-bold max-w-xs mx-auto">The link provided by this user is currently unreachable. Please verify with the user.</p>
                 </div>
               ) : (
                 <img 
@@ -369,9 +530,22 @@ const AdminPanel: React.FC = () => {
                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Stableford Point Entry</p>
                                 </div>
                              </div>
-                             <button onClick={() => setEditingScore(s)} className="p-3 text-slate-300 hover:text-secondary hover:bg-white rounded-xl transition-all cursor-pointer shadow-sm shadow-transparent hover:shadow-slate-200">
-                                <Edit2 size={18} />
-                             </button>
+                             <div className="flex items-center gap-2">
+                                <button 
+                                  onClick={() => setEditingScore(s)} 
+                                  title="Edit Entry"
+                                  className="p-3 bg-white text-slate-500 hover:text-dark border border-slate-100 rounded-xl transition-all cursor-pointer shadow-sm shadow-transparent hover:shadow-slate-200"
+                                >
+                                   <Edit2 size={16} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteScore(s.id)}
+                                  title="Remove Entry"
+                                  className="p-3 bg-red-50 text-red-400 hover:text-red-600 border border-red-100 rounded-xl transition-all cursor-pointer"
+                                >
+                                   <Trash2 size={16} />
+                                </button>
+                             </div>
                           </div>
                        ))}
                        {userScores.length === 0 && <p className="text-center py-10 text-slate-400 font-bold uppercase text-[10px] tracking-widest">No scores recorded for this hero.</p>}
@@ -392,7 +566,7 @@ const AdminPanel: React.FC = () => {
                          </div>
                          <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Round Date</label>
-                            <input name="date" type="date" defaultValue={editingScore.date.split('T')[0]} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-black text-dark focus:outline-none focus:border-secondary" required />
+                            <input name="date" type="date" defaultValue={editingScore.date.split('T')[0]} max={new Date().toISOString().split('T')[0]} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 font-black text-dark focus:outline-none focus:border-secondary" required />
                          </div>
                          <div className="flex gap-2 pt-4">
                             <button type="button" onClick={() => setEditingScore(null)} className="flex-1 py-4 bg-slate-50 text-slate-400 rounded-xl font-black uppercase text-[10px] tracking-widest cursor-pointer">Cancel</button>
@@ -410,7 +584,7 @@ const AdminPanel: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
            <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
               <div className="p-10">
-                 <h3 className="text-2xl font-black text-dark uppercase tracking-tighter mb-8">{charityModal.data ? 'Edit Impact Partner' : 'New Impact Partner'}</h3>
+                 <h3 className="text-2xl font-black text-dark uppercase tracking-tighter mb-8">{charityModal.data ? 'Edit Charity' : 'Add Charity'}</h3>
                  <form onSubmit={handleSaveCharity} className="space-y-6">
                     <div>
                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Partner Name</label>
@@ -441,28 +615,112 @@ const AdminPanel: React.FC = () => {
       )}
 
       {subscriptionModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-           <div className="bg-white rounded-[3rem] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+           <div className="bg-white rounded-[3rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
               <div className="p-10">
-                 <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-secondary mb-8">
-                    <Wallet size={28} />
+                 {/* Header */}
+                 <div className="flex items-center gap-4 mb-8">
+                   <div className="w-14 h-14 bg-dark rounded-2xl flex items-center justify-center text-secondary shrink-0">
+                     <Wallet size={24} />
+                   </div>
+                   <div>
+                     <h3 className="text-xl font-black text-dark uppercase tracking-tighter">{subscriptionModal.full_name}</h3>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{subscriptionModal.email}</p>
+                   </div>
                  </div>
-                 <h3 className="text-2xl font-black text-dark uppercase tracking-tighter mb-2">Access Control</h3>
-                 <p className="text-slate-500 font-bold text-sm mb-10 leading-relaxed">Manually override Hero status or subscription visibility for <b>{subscriptionModal.full_name}</b>.</p>
-                 
+
+                 {/* Current Plan Info */}
+                 <div className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-100">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Current Subscription</p>
+                   <div className="flex items-center justify-between">
+                     <div>
+                       <p className="font-black text-dark text-sm">{subscriptionModal.plan_type || 'No Plan'}</p>
+                       <p className="text-[10px] font-bold text-slate-400 mt-0.5">{subscriptionModal.subscription_status || 'Inactive'}</p>
+                     </div>
+                     <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                       subscriptionModal.status === 'active' 
+                         ? 'bg-emerald-50 text-emerald-600' 
+                         : 'bg-red-50 text-red-500'
+                     }`}>
+                       {subscriptionModal.status === 'active' ? '● Active' : '● Inactive'}
+                     </span>
+                   </div>
+                 </div>
+
+                 {/* Assign / Upgrade Plan */}
+                 <div className="mb-6">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Assign Plan</p>
+                   <div className="grid grid-cols-2 gap-3">
+                     <button
+                       onClick={() => setSelectedPlan('pro_monthly')}
+                       className={`py-4 px-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                         selectedPlan === 'pro_monthly' 
+                           ? 'border-secondary bg-secondary/5' 
+                           : 'border-slate-100 hover:border-slate-200'
+                       }`}
+                     >
+                       <p className="font-black text-dark text-xs uppercase tracking-tight">Monthly</p>
+                       <p className="text-[10px] font-bold text-slate-400 mt-0.5">Pro Monthly</p>
+                     </button>
+                     <button
+                       onClick={() => setSelectedPlan('pro_yearly')}
+                       className={`py-4 px-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                         selectedPlan === 'pro_yearly' 
+                           ? 'border-secondary bg-secondary/5' 
+                           : 'border-slate-100 hover:border-slate-200'
+                       }`}
+                     >
+                       <p className="font-black text-dark text-xs uppercase tracking-tight">Yearly</p>
+                       <p className="text-[10px] font-bold text-emerald-500 mt-0.5">Best Value</p>
+                     </button>
+                   </div>
+                 </div>
+
                  <div className="space-y-3">
-                    <button 
-                      onClick={() => handleToggleSubscription(subscriptionModal.id, subscriptionModal.status)}
-                      className={`w-full py-5 rounded-2xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex items-center justify-center gap-3 ${
-                        subscriptionModal.status === 'active' ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-emerald-500 text-white hover:bg-emerald-600'
-                      }`}
-                    >
-                       {subscriptionModal.status === 'active' ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
-                       {subscriptionModal.status === 'active' ? 'Deactivate Account' : 'Activate Account'}
-                    </button>
-                    <button onClick={() => setSubscriptionModal(null)} className="w-full py-5 bg-slate-50 text-slate-400 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-100 transition-all cursor-pointer">
-                       Cancel Action
-                    </button>
+                   {/* Assign / Upgrade */}
+                   <button
+                     onClick={async () => {
+                       try {
+                         await axios.put(`${CONFIG.BACKEND_URL}/api/admin/users/${subscriptionModal.id}/subscription`, 
+                           { status: 'active', plan_id: selectedPlan }, 
+                           { headers }
+                         );
+                         setUsers(prev => prev.map(u => u.id === subscriptionModal.id ? { ...u, status: 'active', subscription_status: 'Active', plan_type: selectedPlan === 'pro_monthly' ? 'Pro Monthly' : 'Pro Yearly' } : u));
+                         setSubscriptionModal(null);
+                         setModal({ isOpen: true, title: 'Success', message: `Plan assigned: ${selectedPlan === 'pro_monthly' ? 'Monthly' : 'Yearly'}.`, type: 'success' });
+                       } catch { setModal({ isOpen: true, title: 'Error', message: 'Failed to assign plan.', type: 'error' }); }
+                     }}
+                     className="w-full py-4 bg-secondary text-dark rounded-2xl font-black uppercase text-xs tracking-widest hover:brightness-110 transition-all cursor-pointer flex items-center justify-center gap-3"
+                   >
+                     <CheckCircle2 size={18} />
+                     {subscriptionModal.status === 'active' ? 'Upgrade Plan' : 'Assign & Activate'}
+                   </button>
+
+                   {/* Deactivate */}
+                   {subscriptionModal.status === 'active' && (
+                     <button
+                       onClick={() => { handleToggleSubscription(subscriptionModal); setSubscriptionModal(null); }}
+                       className="w-full py-4 bg-red-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-600 transition-all cursor-pointer flex items-center justify-center gap-3"
+                     >
+                       <XCircle size={18} /> Deactivate Account
+                     </button>
+                   )}
+
+                   {/* Delete User */}
+                   <button
+                     onClick={() => { setSubscriptionModal(null); handleDeleteUser(subscriptionModal.id); }}
+                     className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition-all cursor-pointer flex items-center justify-center gap-3"
+                   >
+                     <Trash2 size={18} /> Delete User
+                   </button>
+
+                   {/* Cancel */}
+                   <button
+                     onClick={() => setSubscriptionModal(null)}
+                     className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-200 transition-all cursor-pointer"
+                   >
+                     Cancel
+                   </button>
                  </div>
               </div>
            </div>

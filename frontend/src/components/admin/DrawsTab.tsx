@@ -4,8 +4,6 @@ import { Play, Sparkles, Loader2, History, FileCheck, ExternalLink } from 'lucid
 interface DrawsTabProps {
   drawLogic: 'random' | 'algorithmic';
   setDrawLogic: (logic: 'random' | 'algorithmic') => void;
-  isSimulation: boolean;
-  setIsSimulation: (sim: boolean) => void;
   executingDraw: boolean;
   onExecuteDraw: () => void;
   lastDrawResult: any;
@@ -14,7 +12,7 @@ interface DrawsTabProps {
 }
 
 const DrawsTab: React.FC<DrawsTabProps> = ({ 
-  drawLogic, setDrawLogic, isSimulation, setIsSimulation, 
+  drawLogic, setDrawLogic, 
   executingDraw, onExecuteDraw, lastDrawResult, drawHistory, onViewWinner 
 }) => {
   return (
@@ -50,19 +48,6 @@ const DrawsTab: React.FC<DrawsTabProps> = ({
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 rounded-[2rem] flex items-center justify-between">
-              <div>
-                <p className="text-sm font-black text-dark uppercase tracking-tight">Simulation Mode</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Test results without notification</p>
-              </div>
-              <button 
-                onClick={() => setIsSimulation(!isSimulation)}
-                className={`w-14 h-8 rounded-full relative transition-colors duration-300 ${isSimulation ? 'bg-secondary' : 'bg-slate-200'}`}
-              >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 shadow-sm ${isSimulation ? 'left-7' : 'left-1'}`} />
-              </button>
-            </div>
-
             <button 
               onClick={onExecuteDraw}
               disabled={executingDraw}
@@ -71,7 +56,7 @@ const DrawsTab: React.FC<DrawsTabProps> = ({
               {executingDraw ? (
                 <><Loader2 className="animate-spin" /> Sequencing...</>
               ) : (
-                <><Sparkles size={20} /> Execute {isSimulation ? 'Simulation' : 'Official Draw'}</>
+                <><Sparkles size={20} /> Execute Official Draw</>
               )}
             </button>
           </div>
@@ -82,7 +67,7 @@ const DrawsTab: React.FC<DrawsTabProps> = ({
             <div className="flex justify-between items-start mb-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Official Selection Result</p>
-                <h4 className="text-3xl font-black tracking-tighter uppercase">{lastDrawResult.winner.name}</h4>
+                <h4 className="text-3xl font-black tracking-tighter uppercase">{lastDrawResult.winner_name}</h4>
               </div>
               <div className="p-3 bg-white/20 rounded-2xl">
                 <Trophy className="w-6 h-6" />
@@ -91,11 +76,11 @@ const DrawsTab: React.FC<DrawsTabProps> = ({
             <div className="grid grid-cols-2 gap-6 pt-6 border-t border-white/10">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Prize Awarded</p>
-                <p className="text-xl font-black">£{lastDrawResult.jackpot_amount.toFixed(2)}</p>
+                <p className="text-xl font-black">£{(lastDrawResult.jackpot_amount || 0).toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Support Contribution</p>
-                <p className="text-xl font-black">£{lastDrawResult.charity_contribution.toFixed(2)}</p>
+                <p className="text-xl font-black">£{(lastDrawResult.charity_contribution || 0).toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -116,7 +101,7 @@ const DrawsTab: React.FC<DrawsTabProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-black text-dark uppercase tracking-tight">{h.winner_name || 'Official Winner'}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">£{h.jackpot_amount.toFixed(2)} · {new Date(h.draw_date).toLocaleDateString()}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">£{(h.jackpot_amount || 0).toFixed(2)} · {new Date(h.draw_date).toLocaleDateString()}</p>
                 </div>
               </div>
               <button 

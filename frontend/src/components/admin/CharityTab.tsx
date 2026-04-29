@@ -21,7 +21,7 @@ const CharityTab: React.FC<CharityTabProps> = ({ charities, onAddCharity, onEdit
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div>
-          <h3 className="text-2xl font-black text-dark uppercase tracking-tighter">Impact Hub Registry</h3>
+          <h3 className="text-2xl font-black text-dark uppercase tracking-tighter">Charities</h3>
           <p className="text-slate-400 font-bold text-sm tracking-tight">Managing global partner relationships and contributions.</p>
         </div>
         <button 

@@ -23,7 +23,7 @@ const UsersTab: React.FC<UsersTabProps> = ({ users, onManageScores, onToggleSubs
   return (
     <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm animate-in fade-in duration-500">
       <div className="p-6 sm:p-10 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h3 className="text-xl font-black text-dark uppercase tracking-tight">Hero Registry</h3>
+        <h3 className="text-xl font-black text-dark uppercase tracking-tight">Users</h3>
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
           <input type="text" placeholder="Search by name or email..." className="w-full bg-slate-50 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-bold focus:ring-2 ring-secondary/20 transition-all" />
@@ -33,10 +33,10 @@ const UsersTab: React.FC<UsersTabProps> = ({ users, onManageScores, onToggleSubs
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="bg-slate-50/50">
-              <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Hero Details</th>
+              <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">User Details</th>
               <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
               <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Subscription</th>
-              <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Impact Partner</th>
+              <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400">Charity</th>
               <th className="px-10 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
             </tr>
           </thead>
@@ -71,25 +71,25 @@ const UsersTab: React.FC<UsersTabProps> = ({ users, onManageScores, onToggleSubs
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{u.charity_percentage || 0}% Share</p>
                 </td>
                 <td className="px-10 py-6 text-right">
-                  <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center justify-end gap-2 transition-opacity">
                     <button 
                       onClick={() => onManageScores({ id: u.id, name: u.full_name })}
                       title="Manage Scores"
-                      className="p-2.5 text-slate-400 hover:text-secondary hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-slate-200 cursor-pointer"
+                      className="p-2.5 text-slate-400 hover:text-secondary bg-slate-50 hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-slate-200 cursor-pointer border border-slate-100"
                     >
                       <BarChart3 size={16} />
                     </button>
                     <button 
                       onClick={() => onToggleSubscription(u)}
-                      title="Toggle Access"
-                      className="p-2.5 text-slate-400 hover:text-secondary hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-slate-200 cursor-pointer"
+                      title="Manage Subscription"
+                      className="p-2.5 text-slate-400 hover:text-secondary bg-slate-50 hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-slate-200 cursor-pointer border border-slate-100"
                     >
                       <Wallet size={16} />
                     </button>
                     <button 
                       onClick={() => onDeleteUser(u.id)}
-                      title="Purge User"
-                      className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-slate-200 cursor-pointer"
+                      title="Delete User"
+                      className="p-2.5 text-slate-400 hover:text-red-500 bg-slate-50 hover:bg-white rounded-xl transition-all shadow-sm shadow-transparent hover:shadow-slate-200 cursor-pointer border border-slate-100"
                     >
                       <Trash2 size={16} />
                     </button>

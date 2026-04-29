@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { MessageSquare, Trophy, ArrowRight, Loader2, Bell } from 'lucide-react';
+import { MessageSquare, Trophy, ArrowRight, Loader2, Bell, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { CONFIG } from '../config';
 
@@ -13,14 +13,12 @@ const Messages: React.FC = () => {
   useEffect(() => {
     const fetchMessages = async () => {
       try {
-        // Fetch winners specifically for this user
+        // Fetch all winners for this user
         const res = await axios.get(`${CONFIG.BACKEND_URL}/api/winners/my-winnings`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        // Filter for pending verifications
-        const pending = res.data.winners.filter((w: any) => w.payment_status === 'pending');
-        setNotifications(pending);
+        setNotifications(res.data.winners || []);
       } catch (err) {
         console.error('Failed to fetch messages');
       } finally {
@@ -59,31 +57,69 @@ const Messages: React.FC = () => {
              </div>
            ) : (
              notifications.map((n) => (
-               <div key={n.id} className="group relative bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:border-secondary hover:shadow-lg transition-all shadow-sm">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                     <div className="flex items-start gap-6">
-                        <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center text-dark flex-shrink-0 shadow-lg shadow-secondary/20">
-                           <Trophy size={32} strokeWidth={2.5} />
-                        </div>
-                        <div>
-                           <h3 className="text-2xl font-black text-dark uppercase tracking-tight mb-2">Congratulations! You've Won!</h3>
-                           <p className="text-slate-600 font-bold text-sm mb-4">
-                             You have been selected as a winner for the <span className="text-secondary">{n.prize_tier}</span> prize tier. 
-                             To claim your <span className="text-dark font-black">£{n.amount}</span>, please verify your scores.
-                           </p>
-                           <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-500">
-                              System Notification • {new Date(n.created_at).toLocaleDateString()}
-                           </div>
-                        </div>
-                     </div>
-                     <Link 
-                       to={`/verify-winner/${n.id}`}
-                       className="flex items-center justify-center gap-3 px-8 py-4 bg-dark text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-dark/20 group-hover:-translate-y-1"
-                     >
-                       Verify Now <ArrowRight size={16} />
-                     </Link>
-                  </div>
-               </div>
+                    <div key={n.id} className={`group relative bg-white border rounded-[2.5rem] p-8 transition-all shadow-sm ${
+                      n.payment_status === 'paid' ? 'border-emerald-100 hover:border-emerald-500' :
+                      n.payment_status?.startsWith('rejected') ? 'border-red-100 hover:border-red-500' :
+                      'border-slate-200 hover:border-secondary'
+                    }`}>
+                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                          <div className="flex items-start gap-6">
+                             <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-dark flex-shrink-0 shadow-lg ${
+                               n.payment_status === 'paid' ? 'bg-emerald-500 shadow-emerald-500/20' :
+                               n.payment_status?.startsWith('rejected') ? 'bg-red-500 shadow-red-500/20' :
+                               'bg-secondary shadow-secondary/20'
+                             }`}>
+                                {n.payment_status === 'paid' ? <CheckCircle2 size={32} strokeWidth={2.5} /> : 
+                                 n.payment_status?.startsWith('rejected') ? <XCircle size={32} strokeWidth={2.5} /> :
+                                 <Trophy size={32} strokeWidth={2.5} />}
+                             </div>
+                             <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                   <h3 className="text-2xl font-black text-dark uppercase tracking-tight">
+                                     {n.payment_status === 'paid' ? "Prize Authorized!" : 
+                                      n.payment_status === 'pending_review' ? "Verification Under Review" :
+                                      n.payment_status?.startsWith('rejected') ? "Submission Issue" : 
+                                      "Congratulations! You've Won!"}
+                                   </h3>
+                                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                     n.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-600' :
+                                     n.payment_status === 'pending_review' ? 'bg-blue-50 text-blue-600' :
+                                     n.payment_status?.startsWith('rejected') ? 'bg-red-50 text-red-600' :
+                                     'bg-slate-100 text-slate-500'
+                                   }`}>
+                                     {n.payment_status?.replace('_', ' ') || 'Pending'}
+                                   </span>
+                                </div>
+                                <p className="text-slate-600 font-bold text-sm mb-4">
+                                  {n.payment_status === 'paid' ? 
+                                    `Your prize of £${n.amount} has been verified and authorized for payment. Check your email for next steps.` :
+                                   n.payment_status === 'pending_review' ?
+                                    `We have received your proof for the £${n.amount} prize. Our team is currently reviewing it. We'll notify you once authorized.` :
+                                   n.payment_status?.startsWith('rejected') ? 
+                                    `There was an issue with your proof submission for the £${n.amount} prize. Please re-upload your verification.` :
+                                    `You have been selected as a winner for the ${n.prize_tier} prize tier. To claim your £${n.amount}, please verify your scores.`}
+                                </p>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase text-slate-500">
+                                   System Notification • {new Date(n.created_at).toLocaleDateString()}
+                                </div>
+                             </div>
+                          </div>
+                          {n.payment_status !== 'paid' && (
+                            <Link 
+                              to={n.payment_status === 'pending_review' ? '#' : `/verify-winner/${n.id}`}
+                              className={`flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg group-hover:-translate-y-1 ${
+                                n.payment_status === 'pending_review' ? 'bg-slate-100 text-slate-400 cursor-default' :
+                                n.payment_status?.startsWith('rejected') ? 'bg-red-500 text-white shadow-red-500/20 hover:bg-red-600' :
+                                'bg-dark text-white shadow-dark/20 hover:bg-slate-800'
+                              }`}
+                            >
+                              {n.payment_status === 'pending_review' ? 'Reviewing...' : 
+                               n.payment_status?.startsWith('rejected') ? 'Re-upload Proof' : 'Verify Now'} 
+                              {n.payment_status !== 'pending_review' && <ArrowRight size={16} />}
+                            </Link>
+                          )}
+                       </div>
+                    </div>
              ))
            )}
         </div>

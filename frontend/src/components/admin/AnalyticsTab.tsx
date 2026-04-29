@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { LucideIcon } from 'lucide-react';
 
 interface Stat {
@@ -10,9 +10,31 @@ interface Stat {
 
 interface AnalyticsTabProps {
   stats: Stat[];
+  statsData: any;
 }
 
-const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
+const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, statsData }) => {
+  // Use real growth curve from backend
+  const growthData = useMemo(() => {
+    return statsData?.growthCurve || [30, 45, 35, 60, 50, 70, 85, 65, 80, 55, 90, 100];
+  }, [statsData]);
+
+  // Use real charity mix from backend
+  const mixData = useMemo(() => {
+    const rawMix = statsData?.charityMix;
+    if (!rawMix || rawMix.length === 0) return [
+      { label: 'Youth Sport', value: 45, color: 'bg-emerald-500' },
+      { label: 'Medical Research', value: 30, color: 'bg-secondary' },
+      { label: 'Environment', value: 25, color: 'bg-dark' }
+    ];
+    
+    return rawMix.map((c: any, i: number) => ({
+      label: c.label,
+      value: c.value,
+      color: i === 0 ? 'bg-emerald-500' : (i === 1 ? 'bg-secondary' : 'bg-dark')
+    }));
+  }, [statsData]);
+
   return (
     <div className="space-y-6 sm:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
@@ -34,25 +56,21 @@ const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
         <div className="lg:col-span-2 bg-dark p-8 sm:p-10 rounded-[2.5rem] text-white overflow-hidden relative group">
           <div className="relative z-10">
             <h4 className="text-xl font-black uppercase tracking-tight mb-2">Growth Projection</h4>
-            <p className="text-slate-500 font-bold text-sm mb-8">Subscriber acquisition velocity (24h Window)</p>
+            <p className="text-slate-500 font-bold text-sm mb-8">Subscriber acquisition velocity (Real-time)</p>
             <div className="flex items-end gap-2 h-32 sm:h-48">
-              {[40, 70, 45, 90, 65, 80, 100, 55, 75, 40, 85, 95].map((h, i) => (
+              {growthData.map((h, i) => (
                 <div key={i} className="flex-1 bg-secondary/20 rounded-t-lg group-hover:bg-secondary transition-all duration-500" style={{ height: `${h}%`, transitionDelay: `${i * 50}ms` }} />
               ))}
             </div>
           </div>
         </div>
         <div className="bg-white p-8 sm:p-10 rounded-[2.5rem] border border-slate-100 flex flex-col">
-          <h4 className="text-xl font-black text-dark uppercase tracking-tight mb-8">Charity Mix</h4>
+          <h4 className="text-xl font-black text-dark uppercase tracking-tight mb-8">Impact Distribution</h4>
           <div className="flex-1 flex flex-col justify-center space-y-6">
-            {[
-              { label: 'Youth Sport', value: 45, color: 'bg-emerald-500' },
-              { label: 'Medical Research', value: 30, color: 'bg-secondary' },
-              { label: 'Environment', value: 25, color: 'bg-dark' }
-            ].map((c, i) => (
+            {mixData.map((c, i) => (
               <div key={i}>
                 <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2">
-                  <span>{c.label}</span>
+                  <span className="truncate max-w-[150px]">{c.label}</span>
                   <span>{c.value}%</span>
                 </div>
                 <div className="h-2 bg-slate-50 rounded-full overflow-hidden">

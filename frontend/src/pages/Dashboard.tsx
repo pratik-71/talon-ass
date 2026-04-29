@@ -77,19 +77,15 @@ const Dashboard: React.FC = () => {
       if (!silent) setLoading(true);
       const res = await axios.get(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.DASHBOARD}`, { headers });
       
-      const isSubscribed = res.data.data.subscription?.status === 'active' || user?.subscription_status === 'active';
+      const dashData = res.data.data;
+      const subStatus = dashData.subscription?.status;
 
-      if (!isSubscribed) {
-        try {
-          await axios.get(`${CONFIG.BACKEND_URL}/api/subscription/force-update-subscription`, { headers });
-          const retryRes = await axios.get(`${CONFIG.BACKEND_URL}${CONFIG.API_ENDPOINTS.DASHBOARD}`, { headers });
-          setData(retryRes.data.data);
-          const stillNotSubscribed = retryRes.data.data.subscription?.status !== 'active' && user?.subscription_status !== 'active';
-          if (stillNotSubscribed) { navigate('/subscription', { replace: true }); return; }
-        } catch { navigate('/subscription', { replace: true }); return; }
-      } else {
-        setData(res.data.data);
+      if (subStatus !== 'active' && user?.subscription_status !== 'active') {
+        navigate('/subscription', { replace: true });
+        return;
       }
+      
+      setData(dashData);
     } catch (err: any) {
       if (err?.response?.status === 401) { logout(); navigate('/login'); }
     } finally {

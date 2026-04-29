@@ -8,14 +8,6 @@ const app = express()
 const port = process.env.PORT || 5000
 
 // 1. Detailed Request Logger (VERY HELPFUL FOR VERCEL)
-app.use((req, res, next) => {
-  console.log(`[Request] ${new Date().toISOString()} | ${req.method} ${req.url}`);
-  // Log presence of auth header without exposing token
-  if (req.headers.authorization) {
-    console.log(`[Request] Auth Header detected: Bearer ${req.headers.authorization.substring(7, 15)}...`);
-  }
-  next();
-});
 
 // Middleware
 app.use(cors({
